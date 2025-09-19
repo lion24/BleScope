@@ -1,0 +1,2 @@
+class InvalidScanStateError(Exception):
+    pass
