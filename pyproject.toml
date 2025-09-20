@@ -1,12 +1,12 @@
 [project]
-name = "BleScope"
-dynamic = [ "version" ]
+name = "blescope"
+version = "0.0.0"
+dynamic = [ "readme" ]
 description = "Like a telescope for Bluetooth Low Energy devices"
 authors = [
     {name = "Lionel H",email = "me@nullbyte.be"}
 ]
-license = {text = "MIT"}
-readme = "README.md"
+license = "MIT"
 requires-python = ">=3.13,<4.0.0"
 dependencies = [
     "bleak (>=1.1.1,<2.0.0)",
@@ -24,4 +24,4 @@ requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-version = "0.0.0"
+readme = "README.md"

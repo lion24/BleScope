@@ -9,6 +9,7 @@ from blescope.api.dependencies import create_application_dependencies
 from blescope.api.static_files import setup_static_files
 from blescope.shared.infrastructure.config import Settings
 from blescope.shared.infrastructure.logging_config import setup_logging
+from blescope.__version__ import __version__
 
 # Load settings
 settings = Settings()
@@ -27,6 +28,7 @@ async def lifespan(app: FastAPI):
 
     # Startup
     logger.info("Starting Bluetooth Scanner/Jammer Application...")
+    logger.info(f"Application Version: {__version__}")
     logger.info(f"Configuration: Host={settings.host}, Port={settings.port}, Debug={settings.debug}")
 
     try:
