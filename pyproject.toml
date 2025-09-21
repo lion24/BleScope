@@ -1,6 +1,6 @@
 [project]
 name = "blescope"
-version = "0.0.0"
+version = "0.0.1"
 dynamic = [ "readme" ]
 description = "Like a telescope for Bluetooth Low Energy devices"
 authors = [
