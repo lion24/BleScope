@@ -2,6 +2,7 @@ import logging
 from fastapi import FastAPI, WebSocket, Depends
 
 from blescope.scanning.infrastructure.web.scan_router import router as scan_router
+from blescope.device_management.infrastructure.web.device_router import router as device_router
 from .log_router import router as log_router
 from blescope.api.websocket_manager import WebSocketManager
 from blescope.api.dependencies import get_websocket_manager
@@ -12,6 +13,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Bluetooth Scanner / Jammer API")
 
     app.include_router(scan_router, prefix="/api/v1")
+    app.include_router(device_router, prefix="/api/v1")
     app.include_router(log_router, prefix="/logs")
 
     @app.websocket("/ws")

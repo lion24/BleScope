@@ -6,8 +6,9 @@ from blescope.scanning.application.queries.get_scan_status import GetScanStatusQ
 from blescope.scanning.application.services.scan_manager import ScanManager
 from blescope.scanning.infrastructure.adapters.bleak_scanner_adapter import BleakScannerAdapter
 from blescope.scanning.application.ports.scan_repository import ScanRepository
-from blescope.scanning.application.ports.device_repository import DeviceRepository
-from blescope.scanning.infrastructure.adapters.in_memory_discovered_device_repository import InMemoryDiscoveredDeviceRepository
+from blescope.device_management.application.ports.device_repository import DeviceRepository
+from blescope.device_management.application.queries.get_devices import GetDevicesQueryHandler
+from blescope.scanning.infrastructure.adapters.in_memory_device_repository import InMemoryDeviceRepository
 from blescope.scanning.application.ports.bluetooth_scanner import BluetoothScanner
 from blescope.scanning.infrastructure.adapters.in_memory_scan_repository import InMemoryScanRepository
 from blescope.shared.events.event_bus import EventBus
@@ -25,13 +26,13 @@ def get_event_bus() -> EventBus:
 @lru_cache()
 def get_bluetooth_scanner() -> BluetoothScanner:
     """Dependency to get the singleton BluetoothScanner instance."""
-    device_repo = get_discovered_device_repository()
+    device_repo = get_device_repository()
     return BleakScannerAdapter(device_repo=device_repo)
 
 @lru_cache()
-def get_discovered_device_repository() -> DeviceRepository:
+def get_device_repository() -> DeviceRepository:
     """Dependency to get the singleton DeviceRepository instance."""
-    return InMemoryDiscoveredDeviceRepository()
+    return InMemoryDeviceRepository()
 
 @lru_cache()
 def get_scan_repository() -> ScanRepository:
@@ -44,6 +45,15 @@ def get_scan_query_handler() -> Dict[str, Any]:
 
     return {
         "get_scan_status": GetScanStatusQueryHandler(scan_repo=scan_repo),
+    }
+
+def get_device_query_handler() -> Dict[str, Any]:
+    """Get all query handlers for device module."""
+    scan_repo = get_scan_repository()
+    device_repo = get_device_repository()
+
+    return {
+        "get_devices": GetDevicesQueryHandler(scan_repo=scan_repo, device_repo=device_repo),
     }
 
 def get_scan_manager() -> Any:
