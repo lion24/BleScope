@@ -67,44 +67,53 @@ class BleakScannerAdapter(BluetoothScanner):
             beacon_info = None
 
             if advertisement_data.manufacturer_data:
-                decoded_list = self._deocder.decode(dict(advertisement_data.manufacturer_data))
+                # First, create a basic vendor info for all manufacturer IDs
 
-                for decoded in decoded_list:
-                    # Log decoded information
-                    self.logger.debug(
-                        f"Decoded {decoded.company.company_name} advertisement "
-                        f"for {device.address}: {decoded.advertisement.description}"
-                    )
+                for company_id, data_bytes in advertisement_data.manufacturer_data.items():
+                    company_name = self._deocder.get_manufacturer_name(company_id)
 
-                    # Store decoded data
-                    decoded_data = {
-                        "company_name": decoded.company.company_name,
-                        "company_id": decoded.company.company_id,
-                        "description": decoded.advertisement.description,
-                        "raw_data": decoded.raw_data.hex() if decoded.raw_data else None
+                    # Start with basic info
+                    decoded_manufacturer[company_id] = {
+                        'company_id': company_id,
+                        'company_name': company_name,
+                        'raw_hex': data_bytes.hex(),
+                        'raw_length': len(data_bytes)
                     }
 
-                    if isinstance(decoded.advertisement, IBeaconAdvertisement):
-                        beacon = decoded.advertisement
-                        # Create beacon info
-                        beacon_info = {
-                            "type": "iBeacon",
-                            "uuid": str(beacon.uuid),
-                            "major": beacon.major,
-                            "minor": beacon.minor,
-                            "tx_power": beacon.tx_power
-                        }
+                    for decoded in self._deocder.decode(dict(advertisement_data.manufacturer_data)):
+                        company_id = decoded.company.company_id
+                
+                        # Update with decoded information
+                        decoded_data = decoded_manufacturer[company_id]
+                        decoded_data['description'] = decoded.advertisement.description
                         
-                        decoded_data.update(beacon_info)
-                        
-                        if beacon.tx_power:
-                            distance = beacon.estimate_distance(advertisement_data.rssi)
-                            if distance:
-                                decoded_data["estimated_distance_m"] = round(distance, 2)
-                                beacon_info['distance'] = round(distance, 2)
-                                self.logger.info(
-                                    f"iBeacon {beacon.uuid} detected at ~{distance:.2f}m"
-                                )
+                        # Log decoded information
+                        self.logger.debug(
+                            f"Decoded {decoded.company.company_name} advertisement "
+                            f"for {device.address}: {decoded.advertisement.description}"
+                        )
+
+                        if isinstance(decoded.advertisement, IBeaconAdvertisement):
+                            beacon = decoded.advertisement
+                            # Create beacon info
+                            beacon_info = {
+                                "type": "iBeacon",
+                                "uuid": str(beacon.uuid),
+                                "major": beacon.major,
+                                "minor": beacon.minor,
+                                "tx_power": beacon.tx_power
+                            }
+                            
+                            decoded_data.update(beacon_info)
+                            
+                            if beacon.tx_power:
+                                distance = beacon.estimate_distance(advertisement_data.rssi)
+                                if distance:
+                                    decoded_data["estimated_distance_m"] = round(distance, 2)
+                                    beacon_info['distance'] = round(distance, 2)
+                                    self.logger.info(
+                                        f"iBeacon {beacon.uuid} detected at ~{distance:.2f}m"
+                                    )
 
 
             existing_device = await self._device_repo.get(device_address)

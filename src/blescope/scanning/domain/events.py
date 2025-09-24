@@ -2,13 +2,13 @@ import time
 
 from datetime import datetime, UTC
 from dataclasses import dataclass, field
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 from serde import serde
 
 from blescope.shared.domain.base_types import DeviceAddress, RSSI
 
 @serde
-@dataclass
+@dataclass(kw_only=True)
 class DomainEvent:
     """Base class for domain events.
 
@@ -32,10 +32,13 @@ class ScanStopped(DomainEvent):
     devices_found: int
 
 @serde
-@dataclass
+@dataclass(kw_only=True)
 class DeviceDiscovered(DomainEvent):
     """Event triggered when a device is discovered during a scan."""
     device_address: DeviceAddress
     device_name: Optional[str]
     rssi: RSSI
-    manufacturer_data: Dict[int, bytes]
+    # Additional fields for manufacturer data
+    manufacturer_data: Dict[str, str] = field(default_factory=dict)
+    decoded_manufacturer: Dict[str, Any] = field(default_factory=dict)
+    beacon_info: Optional[Dict[str, Any]] = None # e.g., for iBeacon details

@@ -62,7 +62,7 @@ class ScanManager:
                 
                 self.logger.info(
                     f"Discovered device: {device.address} "
-                    f"(Name: {device.name or 'Unknown'}, RSSI: {device.rssi.value})"
+                    f"(Name: {device.name or 'Unknown'}, RSSI: {device.rssi.value}, decoded_manufacturer: {device.decoded_manufacturer})"
                 )
                 
                 scan.add_discovered_device(device.address)
@@ -74,7 +74,9 @@ class ScanManager:
                         device_address=device.address,
                         device_name=device.name,
                         rssi=device.rssi,
-                        manufacturer_data=device.manufacturer_data,
+                        manufacturer_data={str(k): v.hex() for k, v in device.manufacturer_data.items()},
+                        decoded_manufacturer={str(k): v for k, v in device.decoded_manufacturer.items()},
+                        beacon_info=device.beacon_info
                     )
                 )
 

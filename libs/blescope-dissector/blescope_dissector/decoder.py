@@ -1,7 +1,9 @@
 import logging
+import yaml
 
 from typing import Dict, List, Optional
 from dataclasses import dataclass
+from pathlib import Path
 
 from blescope_dissector.base import ManufacturerInfo, AdvertisementDecoder, DecodedAvertisement
 from blescope_dissector.beacon import IBeaconDecoder
@@ -16,27 +18,36 @@ class DecodedManufacturerData:
 class ManufacturerDataDecoder:
     """Main decoder that use specific decoders for different advertisement types."""
 
-    # Company ID to manufacturer info mapping
-    MANUFACTURERS = {
-        0x0006: ManufacturerInfo(0x0006, "Microsoft", "Microsoft Corporation"),
-        0x004C: ManufacturerInfo(0x004C, "Apple", "Apple, Inc."),
-        0x0075: ManufacturerInfo(0x0075, "Samsung", "Samsung Electronics Co. Ltd."),
-        0x00E0: ManufacturerInfo(0x00E0, "Google", "Google LLC"),
-        0x0087: ManufacturerInfo(0x0087, "Intel", "Intel Corporation"),
-        0x005A: ManufacturerInfo(0x005A, "Nordic Semiconductor", "Nordic Semiconductor ASA"),
-        0x0078: ManufacturerInfo(0x0078, "Nike", "Nike, Inc."),
-        0x006B: ManufacturerInfo(0x006B, "Polar Electro", "Polar Electro Oy"),
-        0x0157: ManufacturerInfo(0x0157, "Xiaomi", "Anhui Huami Information Technology Co., Ltd."),
-        0x02D0: ManufacturerInfo(0x02D0, "Estimote", "Estimote, Inc."),
-    }
+    def __init__(self, yaml_file: Optional[str] = None):
+        if yaml_file is None:
+            yaml_file = Path(__file__).parent / "company_identifiers.yaml"
 
-    def __init__(self):
+        self.MANUFACTURERS = self._load_manufacturers(yaml_file)
+
         # Register all available decoders
         self._decoders: List[AdvertisementDecoder] = [
             IBeaconDecoder(),
             # Add other decoders here (EddystoneDecoder, AltBeaconDecoder, etc.)
         ]
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+
+    def _load_manufacturers(self, yaml_path: Path) -> Dict[int, ManufacturerInfo]:
+        """Load manufacturer info from a YAML file."""
+        with open(yaml_path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        
+        manufacturers = {}
+        for entry in data.get("company_identifiers", []):
+            company_id = entry.get("value")
+            name = entry.get("name")
+            if company_id is not None and name:
+                manufacturers[company_id] = ManufacturerInfo(company_id, name)
+        
+        return manufacturers
+
+    def get_manufacturer_name(self, company_id: int) -> str:
+        """Get manufacturer name by company ID."""
+        return self.MANUFACTURERS.get(company_id, ManufacturerInfo(company_id, f"Unknown (0x{company_id:04X})", None)).company_name
 
     def decode(self, manufacturer_data: Dict[int, bytes]) -> List[DecodedManufacturerData]:
         """
