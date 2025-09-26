@@ -4,10 +4,10 @@ import datetime
 from bleak import BleakScanner
 from bleak.backends.device import BLEDevice
 from bleak.backends.scanner import AdvertisementData
-from typing import AsyncIterator, Set
+from typing import AsyncIterator, Dict, Any, Optional, Set
 
 from blescope.scanning.application.ports.bluetooth_scanner import BluetoothScanner
-from blescope.device_management.application.ports.device_repository import DeviceRepository
+from blescope.device_management.application.ports.device_repository import ObservableDeviceRepository
 from blescope.device_management.domain.device import Device, DeviceState
 from blescope.shared.domain.base_types import DeviceAddress, RSSI
 
@@ -17,18 +17,21 @@ from blescope_dissector import (
 )
 
 class BleakScannerAdapter(BluetoothScanner):
-    def __init__(self, device_repo: DeviceRepository):
+    def __init__(self, device_repo: ObservableDeviceRepository):
         self._scanner = None
         self._scanning = False
-        self._discovered_queue = asyncio.Queue()
         self._device_repo = device_repo
-        self._deocder = ManufacturerDataDecoder()
+        self._manufacturer_decoder = ManufacturerDataDecoder()
+        self._processing_queue = asyncio.Queue()
+        self._processor_task = None
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self._rssi_change_threshold = 5  # dB change to consider significant
 
-    async def start_scan(self) -> AsyncIterator[Device]:
+    async def start_scan(self) -> None:
         self.logger.info("Starting Bluetooth scan with Bleak")
         self._scanning = True
+
+        # Start the processor task
+        self._processor_task = asyncio.create_task(self._process_queue())
 
         # Create scanner with detection callback
         self._scanner = BleakScanner(detection_callback=self._detection_callback)
@@ -39,14 +42,7 @@ class BleakScannerAdapter(BluetoothScanner):
             self.logger.info("Scanner started successfully")
 
             while self._scanning:
-                try:
-                    device = await asyncio.wait_for(
-                        self._discovered_queue.get(),
-                        timeout=0.5
-                    )
-                    yield device
-                except asyncio.TimeoutError:
-                    continue
+                await asyncio.sleep(1)
 
         except Exception as e:
             self.logger.error(f"Scanner error: {e}", exc_info=True)
@@ -56,152 +52,102 @@ class BleakScannerAdapter(BluetoothScanner):
 
     def _detection_callback(self, device: BLEDevice, advertisement_data: AdvertisementData):
         """Callback for when a device is detected."""
-        asyncio.create_task(self._process_detection(device, advertisement_data))
-
-    async def _process_detection(self, device: BLEDevice, advertisement_data: AdvertisementData):
         try:
-            device_address = DeviceAddress(device.address)
+            self._processing_queue.put_nowait((device, advertisement_data))
+        except asyncio.QueueFull:
+            self.logger.warning("Processing queue is full, dropping detected device.")
 
-            # Decode manufacturer data if possible
-            decoded_manufacturer = {}
-            beacon_info = None
+    async def _process_queue(self):
+        """Process detected device from queue"""
+        while self._scanning or not self._processing_queue.empty():
+            try:
+                device, adv_data = await asyncio.wait_for(
+                    self._processing_queue.get(),
+                    timeout=1.0
+                )
 
-            if advertisement_data.manufacturer_data:
-                # First, create a basic vendor info for all manufacturer IDs
+                await self._process_device(device, adv_data)
 
-                for company_id, data_bytes in advertisement_data.manufacturer_data.items():
-                    company_name = self._deocder.get_manufacturer_name(company_id)
+            except asyncio.TimeoutError:
+                continue
+            except Exception as e:
+                self.logger.error(f"Error processing device from queue: {e}", exc_info=True)
 
-                    # Start with basic info
-                    decoded_manufacturer[company_id] = {
-                        'company_id': company_id,
-                        'company_name': company_name,
-                        'raw_hex': data_bytes.hex(),
-                        'raw_length': len(data_bytes)
+    async def _process_device(self, device: BLEDevice, advertisement_data: AdvertisementData):
+        """Process a single device detection"""
+        # Create device entity from advertisement data
+        decoded_mfd = self._decode_manufacturer_data(advertisement_data)
+
+        device_entity = Device(
+            address=DeviceAddress(device.address),
+            name=advertisement_data.local_name or device.name,
+            rssi=RSSI(advertisement_data.rssi),
+            state=DeviceState.DISCONNECTED,
+            last_seen=datetime.datetime.now(datetime.UTC),
+            manufacturer_data=advertisement_data.manufacturer_data if advertisement_data.manufacturer_data else {},
+            decoded_manufacturer=decoded_mfd,
+            beacon_info=None
+        )
+        
+        # Save and let repository/observers handle the rest
+        await self._device_repo.save(device_entity)
+
+    def _decode_manufacturer_data(self, advertisement_data: AdvertisementData) -> Dict[int, Any]:
+        """Decode manufacturer data"""
+        decoded = {}
+        
+        if not advertisement_data.manufacturer_data:
+            return decoded
+        
+        # Basic vendor info for all
+        for company_id, data_bytes in advertisement_data.manufacturer_data.items():
+            vendor_name = self._manufacturer_decoder.get_manufacturer_name(company_id)
+            decoded[str(company_id)] = { # Use str keys for JSON compatibility
+                'company_id': company_id,
+                'company_name': vendor_name,
+                'raw_hex': data_bytes.hex(),
+                'raw_length': len(data_bytes)
+            }
+        
+        # Try specific decoding
+        decoded_list = self._manufacturer_decoder.decode(dict(advertisement_data.manufacturer_data))
+        for decoded_item in decoded_list:
+            # Enhance with decoded information
+            if decoded_item.advertisement:
+                decoded[str(decoded_item.company.company_id)].update(
+                    self._extract_advertisement_data(decoded_item.advertisement)
+                )
+
+        return decoded
+
+    def _extract_advertisement_data(self, advertisement: Any) -> Dict[str, Any]:
+        """Extract data from decoded advertisement"""
+        # Implementation depends on advertisement type
+        # This keeps the decoding logic separate
+        data = {}
+        
+        if isinstance(advertisement, IBeaconAdvertisement):
+            data.update({
+                'type': 'ibeacon',
+                'uuid': str(advertisement.uuid),
+                'major': advertisement.major,
+                'minor': advertisement.minor,
+                'tx_power': advertisement.tx_power
+            })
+
+        # TODO: Add other advertisement types as needed
+        
+        return data
+
+    def _extract_beacon_info(self, decoded_manufacturer: Dict[int, Any]) -> Optional[Dict[str, Any]]:
+        """Extract beacon info if present"""
+        if decoded_manufacturer:
+            for mfg_data in decoded_manufacturer.values():
+                if mfg_data.get('type') in ['ibeacon', 'eddystone']:
+                    return {
+                        'type': mfg_data['type'],
+                        # ... other beacon fields
                     }
-
-                    for decoded in self._deocder.decode(dict(advertisement_data.manufacturer_data)):
-                        company_id = decoded.company.company_id
-                
-                        # Update with decoded information
-                        decoded_data = decoded_manufacturer[company_id]
-                        decoded_data['description'] = decoded.advertisement.description
-                        
-                        # Log decoded information
-                        self.logger.debug(
-                            f"Decoded {decoded.company.company_name} advertisement "
-                            f"for {device.address}: {decoded.advertisement.description}"
-                        )
-
-                        if isinstance(decoded.advertisement, IBeaconAdvertisement):
-                            beacon = decoded.advertisement
-                            # Create beacon info
-                            beacon_info = {
-                                "type": "iBeacon",
-                                "uuid": str(beacon.uuid),
-                                "major": beacon.major,
-                                "minor": beacon.minor,
-                                "tx_power": beacon.tx_power
-                            }
-                            
-                            decoded_data.update(beacon_info)
-                            
-                            if beacon.tx_power:
-                                distance = beacon.estimate_distance(advertisement_data.rssi)
-                                if distance:
-                                    decoded_data["estimated_distance_m"] = round(distance, 2)
-                                    beacon_info['distance'] = round(distance, 2)
-                                    self.logger.info(
-                                        f"iBeacon {beacon.uuid} detected at ~{distance:.2f}m"
-                                    )
-
-
-            existing_device = await self._device_repo.get(device_address)
-            should_enqueue = False
-
-            # Only enqueue if not seen recently
-            # (or if RSSI has changed significantly)
-            if not existing_device:
-                should_enqueue = True
-
-                new_device = Device(
-                    address=device_address,
-                    name=device.name or advertisement_data.local_name,
-                    rssi=RSSI(advertisement_data.rssi),
-                    state=DeviceState.DISCONNECTED,
-                    last_seen=datetime.datetime.now(datetime.UTC),
-                    manufacturer_data=advertisement_data.manufacturer_data,
-                    decoded_manufacturer=decoded_manufacturer,
-                    beacon_info=beacon_info
-                )
-
-                # Log discovery
-                self.logger.debug(
-                    f"New discovered device {device.address} "
-                    f"Name={device.name}, "
-                    f"rssi={advertisement_data.rssi}, "
-                    f"Type: {beacon_info['type'] if beacon_info else 'Generic'})"
-                )
-
-                # Save to repository
-                await self._device_repo.save(new_device)
-
-                # Use new device for queue
-                existing_device = new_device
-            else:
-                # Existing device, check RSSI change
-                rssi_delta = abs(existing_device.rssi.value - existing_device.rssi.value)
-                named_changed = (device.name != existing_device.name and device.name is not None)
-                manufacturer_changed = (dict(advertisement_data.manufacturer_data) != existing_device.manufacturer_data 
-                                      if advertisement_data.manufacturer_data else False)
-
-                if rssi_delta >= self._rssi_change_threshold or named_changed or manufacturer_changed:
-                    should_enqueue = True
-
-
-                    # Update manufacturer data if changed
-                    if manufacturer_changed:
-                        existing_device.manufacturer_data = dict(advertisement_data.manufacturer_data)
-                        existing_device.decoded_manufacturer = decoded_manufacturer
-                        existing_device.beacon_info = beacon_info
-                        
-                        self.logger.debug(
-                            f"Updated manufacturer data for {device.address}"
-                        )
-
-                        existing_device.manufacturer_data = advertisement_data.manufacturer_data
-
-                    if rssi_delta >= self._rssi_change_threshold:
-                        self.logger.debug(
-                            f"Device {device.address} RSSI changed: "
-                            f"{existing_device.rssi.value} -> {advertisement_data.rssi} (Δ{rssi_delta})"
-                        )
-                        # Update device in repository
-                        existing_device.rssi = RSSI(advertisement_data.rssi)
-
-                    if named_changed:
-                        self.logger.info(
-                            f"Device {device.address} name changed: "
-                            f"{existing_device.name} -> {device.name or advertisement_data.local_name}"
-                        )
-                        if existing_device.name:
-                            existing_device.name = device.name or advertisement_data.local_name
-
-                    
-                    existing_device.last_seen = datetime.datetime.now(datetime.UTC)
-
-                    await self._device_repo.save(existing_device)
-
-            if should_enqueue:
-                try:
-                    self._discovered_queue.put_nowait(existing_device)
-                except asyncio.QueueFull:
-                    self.logger.warning("Discovered device queue is full, dropping device.")
-
-        except Exception as e:
-            self.logger.warning(
-                f"Failed to process detected device {device.address}: {e}",
-            )
 
     async def stop_scan(self) -> None:
         self.logger.info("Stopping Bluetooth scan")
@@ -220,12 +166,12 @@ class BleakScannerAdapter(BluetoothScanner):
         self._scanner = None
 
         # Clear any remaining items in the queue
-        while not self._discovered_queue.empty():
+        while not self._processing_queue.empty():
             try:
-                self._discovered_queue.get_nowait()
+                self._processing_queue.get_nowait()
             except asyncio.QueueEmpty:
                 break
 
     def get_decoder(self) -> ManufacturerDataDecoder:
         """Get the manufacturer data decoder (for registering custom decoders)."""
-        return self._decoder
+        return self._manufacturer_decoder

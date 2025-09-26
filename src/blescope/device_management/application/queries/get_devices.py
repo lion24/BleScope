@@ -18,13 +18,13 @@ class DeviceDTO:
     last_seen: int
     manufacturer_data: Optional[dict] = None
     decoded_manufacturer: Dict[int, Any] = field(default_factory=dict)
-    beacon_info: Optional[Dict[str, Any]] = None # e.g., for iBeacon details
+    beacon_info: Optional[Dict[str, Any]] = None # e.g., for ibeacon details
 
 class GetDevicesQueryHandler:
     def __init__(
         self,
         scan_repo: ScanRepository,
-        device_repo: DeviceRepository = None # Optional, for detailed info
+        device_repo: DeviceRepository
     ):
         self.scan_repo = scan_repo
         self.device_repo = device_repo
@@ -37,8 +37,7 @@ class GetDevicesQueryHandler:
         devices = []
 
         if self.device_repo and query.include_details:
-            for address in scan.discovered_devices:
-                device = await self.device_repo.get(address)
+            for device in await self.device_repo.get_all():
                 if device:
                     devices.append(
                         DeviceDTO(
@@ -51,17 +50,5 @@ class GetDevicesQueryHandler:
                             beacon_info=device.beacon_info
                         )
                     )
-        else:
-            # Just return addresses from scan
-            devices = [
-                DeviceDTO(
-                    device_address=addr,
-                    name=None,
-                    rssi=0,
-                    last_seen=-1,
-                    manufacturer_data={}  # Omit detailed data
-                )
-                for addr in scan.discovered_devices
-            ]
 
         return devices

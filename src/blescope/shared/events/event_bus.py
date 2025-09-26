@@ -3,6 +3,8 @@ from typing import List, Callable, Dict, Any
 from dataclasses import dataclass
 import asyncio
 
+from blescope.shared.events.exceptions import HandlerExecutionError
+
 @dataclass
 class Event:
     name: str
@@ -29,8 +31,7 @@ class EventBus:
             if not k.startswith('_')
         }
 
-        self.logger.info(f"Published event: {event_name}")
-        self.logger.debug(f"Event data: {event_data}")
+        self.logger.debug(f"Published event: {event_name}")
 
         if event_name in self._handlers:
             handlers = self._handlers.get(event_name)
@@ -51,6 +52,8 @@ class EventBus:
                         exec_info=True
                     )
 
+                    raise e # Reraise to avoid silent failures
+
             if tasks:
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 for i, result in enumerate(results):
@@ -58,5 +61,10 @@ class EventBus:
                         self.logger.error(
                             f"Handler {handlers[i].__name__} failed: {result}"
                         )
+                        
+                        raise HandlerExecutionError(
+                            f"Handler {handlers[i].__name__} failed"
+                        ) from result
+                        
         else:
             self.logger.warning(f"No handlers for event '{event_name}'")

@@ -21,6 +21,11 @@ class InMemoryDeviceRepository(DeviceRepository):
     async def get_all(self) -> List[Device]:
         """Get all discovered devices."""
         return list(self._devices.values())
+    
+    async def delete(self, address: DeviceAddress) -> None:
+        """Delete a device"""
+        if address in self._devices:
+            del self._devices[address]
 
     async def clear(self) -> None:
         """Clear all discovered devices."""

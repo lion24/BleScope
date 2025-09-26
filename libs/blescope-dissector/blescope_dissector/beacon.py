@@ -1,4 +1,4 @@
-"""Beacon-specific decoders (iBeacon, Eddystone, AltBeacon)"""
+"""Beacon-specific decoders (ibeacon, Eddystone, AltBeacon)"""
 import logging
 import struct
 import uuid
@@ -8,7 +8,7 @@ from enum import Enum
 from blescope_dissector.base import DecodedAvertisement, AdvertisementDecoder
 
 class BeaconType(Enum):
-    IBEACON = "iBeacon"
+    IBEACON = "ibeacon"
     EDDYSTONE = "Eddystone"
     ALTBEACON = "AltBeacon"
 
@@ -35,7 +35,7 @@ class BeaconAdvertisement(DecodedAvertisement):
 
 @dataclass
 class IBeaconAdvertisement(BeaconAdvertisement):
-    """iBeacon advertisement data."""
+    """ibeacon advertisement data."""
     uuid: uuid.UUID
     major: int
     minor: int
@@ -43,16 +43,16 @@ class IBeaconAdvertisement(BeaconAdvertisement):
     def __post_init__(self):
         self.beacon_type = BeaconType.IBEACON
         self.description = (
-            f"iBeacon - UUID: {self.uuid}, "
+            f"ibeacon - UUID: {self.uuid}, "
             f"Major: {self.major}, Minor: {self.minor}, "
             f"Tx Power: {self.tx_power}"
         )
 
 class IBeaconDecoder(AdvertisementDecoder):
-    """Decoder for iBeacon advertisements."""
+    """Decoder for ibeacon advertisements."""
 
     IBEACON_COMPANY_ID = 0x004C  # Apple Inc.
-    IBEACON_TYPE = 0x02
+    IBEACON_TYPE = 0x02 # ibeacon type (proximity beacon)
     IBEACON_LENGTH = 0x15
 
     def __init__(self):
@@ -71,7 +71,7 @@ class IBeaconDecoder(AdvertisementDecoder):
             return None
 
         try:
-            self.logger.debug(f"Decoding iBeacon data: {data.hex()}")
+            self.logger.debug(f"Decoding ibeacon data: {data.hex()}")
             uuid_bytes = data[2:18]
             major, minor, tx_power = struct.unpack(">HHb", data[18:23])
             beacon_uuid = uuid.UUID(bytes=uuid_bytes)
@@ -85,5 +85,5 @@ class IBeaconDecoder(AdvertisementDecoder):
                 beacon_type=BeaconType.IBEACON
             )
         except Exception as e:
-            self.logger.error(f"Failed to decode iBeacon data: {e}", exc_info=True)
+            self.logger.error(f"Failed to decode ibeacon data: {e}", exc_info=True)
             return None

@@ -105,12 +105,12 @@
                             <p class="text-sm text-gray-600 font-mono" x-text="device.address"></p>
                         </div>
                         <div class="text-right">
-                            <div class="text-2xl font-bold" :class="getRssiColor(device.rssi.value)">
-                                <span x-text="device.rssi.value"></span>
+                            <div class="text-2xl font-bold" :class="getRssiColor(device.rssi)">
+                                <span x-text="device.rssi"></span>
                                 <span class="text-sm font-normal">dBm</span>
                             </div>
                             <div class="text-xs text-gray-500">
-                                <span x-text="getRssiStrength(device.rssi.value)"></span>
+                                <span x-text="getRssiStrength(device.rssi)"></span>
                             </div>
                         </div>
                     </div>
@@ -135,17 +135,17 @@
                                     <div x-show="mfgData.type" class="mt-1">
                                         <span class="inline-block px-2 py-1 text-xs rounded-full"
                                               :class="{
-                                                  'bg-blue-100 text-blue-700': mfgData.type === 'iBeacon',
+                                                  'bg-blue-100 text-blue-700': mfgData.type === 'ibeacon',
                                                   'bg-green-100 text-green-700': mfgData.type === 'eddystone',
                                                   'bg-purple-100 text-purple-700': mfgData.type === 'airpods',
-                                                  'bg-gray-100 text-gray-700': !['iBeacon', 'eddystone', 'airpods'].includes(mfgData.type)
+                                                  'bg-gray-100 text-gray-700': !['ibeacon', 'eddystone', 'airpods'].includes(mfgData.type)
                                               }"
                                               x-text="mfgData.type ? mfgData.type.toUpperCase() : 'UNKNOWN'">
                                         </span>
                                     </div>
                                     
                                     <!-- Beacon Details -->
-                                    <div x-show="mfgData.type === 'iBeacon'" class="mt-1 space-y-1">
+                                    <div x-show="mfgData.type === 'ibeacon'" class="mt-1 space-y-1">
                                         <div class="text-xs text-gray-600">
                                             <span class="font-medium">UUID:</span>
                                             <span x-text="mfgData.uuid ? mfgData.uuid.substring(0, 8) + '...' : ''"></span>
@@ -346,19 +346,31 @@
                         case 'scan_stopped':
                             this.scanning = false;
                             break;
-                        case 'device_discovered':
+                        case 'device_created':
                             this.addOrUpdateDevice(message.data);
                             break;
+                        case 'device_updated':
+                            const {address, changes, timestamp} = message.data
+                            this.addOrUpdateDevice(
+                                {
+                                    ...this.devices[address],
+                                    timestamp: new Date(timestamp).toISOString(),
+                                    ...changes,
+                                }
+                            )
+                            break;
                         default:
-                            console.warn('Unknown message type:', message.type);
+                            console.warn('Unknown message type:', JSON.stringify(message.type));
                     }
                 },
 
                 addOrUpdateDevice(deviceData) {
-                    console.log('Device discovered:', deviceData);
+                    console.log('Device created:', deviceData);
                     const device = {
                         ...deviceData,
                         manufacturer_data: deviceData.manufacturer_data || {},
+                        decoded_manufacturer: deviceData.decoded_manufacturer || {},
+                        beacon_info: deviceData.beacon_info || {},
                         showDetails: this.devices[deviceData.address]?.showDetails || false
                     };
 
@@ -370,7 +382,7 @@
                         if (this.filter.name && !device.name?.toLowerCase().includes(this.filter.name.toLowerCase())) {
                             return false;
                         }
-                        if (device.rssi.value < this.filter.minRssi) {
+                        if (device.rssi < this.filter.minRssi) {
                             return false;
                         }
                         return true;
@@ -379,7 +391,7 @@
                     return filtered.sort((a, b) => {
                         switch (this.sortBy) {
                             case 'rssi':
-                                return b.rssi.value - a.rssi.value;
+                                return b.rssi - a.rssi;
                             case 'name':
                                 return (a.name || 'ZZZ').localeCompare(b.name || 'ZZZ');
                             default:
@@ -391,6 +403,7 @@
                 getRssiColor(rssi) {
                     if (rssi >= -50) return 'text-green-600';
                     if (rssi >= -70) return 'text-yellow-600';
+                    if (rssi >= -85) return 'text-orange-600';
                     return 'text-red-600';
                 },
 

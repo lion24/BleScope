@@ -1,5 +1,5 @@
 import logging
-from fastapi import FastAPI, WebSocket, Depends
+from fastapi import FastAPI, WebSocket, Depends, WebSocketDisconnect
 
 from blescope.scanning.infrastructure.web.scan_router import router as scan_router
 from blescope.device_management.infrastructure.web.device_router import router as device_router
@@ -26,9 +26,10 @@ def create_app() -> FastAPI:
             while True:
                 data = await websocket.receive_text()  # Keep the connection open
                 await websocket.send_text(data)
-        except Exception:
-            pass
-        finally:
+        except WebSocketDisconnect:
             websocket_manager.disconnect(websocket)
+        except Exception as e:
+            logger.error(f"WebSocket error: {e}", exc_info=True)
+            #websocket_manager.disconnect(websocket)
 
     return app

@@ -4,7 +4,7 @@ from blescope.device_management.domain.device import Device
 
 class BluetoothScanner(ABC):
     @abstractmethod
-    async def start_scan(self) -> AsyncIterator[Device]:
+    async def start_scan(self) -> None:
         """Start scanning and yield discovered devices."""
         pass
 

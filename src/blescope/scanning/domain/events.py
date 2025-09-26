@@ -30,15 +30,3 @@ class ScanStopped(DomainEvent):
     """Event triggered when a scan is stopped."""
     scan_id: str
     devices_found: int
-
-@serde
-@dataclass(kw_only=True)
-class DeviceDiscovered(DomainEvent):
-    """Event triggered when a device is discovered during a scan."""
-    device_address: DeviceAddress
-    device_name: Optional[str]
-    rssi: RSSI
-    # Additional fields for manufacturer data
-    manufacturer_data: Dict[str, str] = field(default_factory=dict)
-    decoded_manufacturer: Dict[str, Any] = field(default_factory=dict)
-    beacon_info: Optional[Dict[str, Any]] = None # e.g., for iBeacon details

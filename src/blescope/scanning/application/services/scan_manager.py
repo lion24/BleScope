@@ -8,7 +8,7 @@ from blescope.scanning.application.ports.scan_repository import ScanRepository
 from blescope.shared.events.event_bus import EventBus
 from blescope.scanning.domain.scan import Scan, ScanState
 from blescope.scanning.domain.exceptions import InvalidScanStateError
-from blescope.scanning.domain.events import ScanStarted, ScanStopped, DeviceDiscovered
+from blescope.scanning.domain.events import ScanStarted, ScanStopped
 
 def generate_scan_id() -> str:
     return str(uuid.uuid4())
@@ -46,44 +46,10 @@ class ScanManager:
         await self.event_bus.publish(ScanStarted(scan_id=scan.id))
 
         # Start background task
-        self._scan_task = asyncio.create_task(self._scan_loop(scan))
+        self._scan_task = asyncio.create_task(self.scanner.start_scan())
 
         self.logger.info(f"Scan {scan.id} started in background.")
         return scan.id
-
-    async def _scan_loop(self, scan: Scan):
-        """Background scan loop"""
-        try:
-            async for device in self.scanner.start_scan():
-                # Check if should continue
-                current_scan = await self.scan_repo.get_current()
-                if not current_scan or current_scan.state != ScanState.SCANNING:
-                    break
-                
-                self.logger.info(
-                    f"Discovered device: {device.address} "
-                    f"(Name: {device.name or 'Unknown'}, RSSI: {device.rssi.value}, decoded_manufacturer: {device.decoded_manufacturer})"
-                )
-                
-                scan.add_discovered_device(device.address)
-                await self.scan_repo.save(scan)
-
-                # Publish device discovered event
-                await self.event_bus.publish(
-                    DeviceDiscovered(
-                        device_address=device.address,
-                        device_name=device.name,
-                        rssi=device.rssi,
-                        manufacturer_data={str(k): v.hex() for k, v in device.manufacturer_data.items()},
-                        decoded_manufacturer={str(k): v for k, v in device.decoded_manufacturer.items()},
-                        beacon_info=device.beacon_info
-                    )
-                )
-
-        except asyncio.CancelledError:
-            self.logger.info(f"Scan {scan.id} cancelled.")
-        except Exception as e:
-            self.logger.error(f"Scan error: {e}", exc_info=True)
 
     async def stop_scan(self) -> None:
         """Stop the current scan."""
