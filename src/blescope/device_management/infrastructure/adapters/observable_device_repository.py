@@ -68,28 +68,6 @@ class InMemoryObservableDeviceRepository(ObservableDeviceRepository):
         self._observers.discard(observer)
         self._logger.debug(f"Observer {observer.__class__.__name__} unsubscribed")
 
-    def _detect_changes(self, old_device: Device, new_device: Device) -> Dict[str, Any]:
-        """Detect what changed between old and new device"""
-        changes = {}
-
-        # Check each field for changes
-        if old_device.name != new_device.name:
-            changes['name'] = {'old': old_device.name, 'new': new_device.name}
-        
-        if old_device.rssi.value != new_device.rssi.value:
-            changes['rssi'] = {'old': old_device.rssi.value, 'new': new_device.rssi.value}
-        
-        if old_device.state != new_device.state:
-            changes['state'] = {'old': old_device.state.value, 'new': new_device.state.value}
-        
-        if old_device.manufacturer_data != new_device.manufacturer_data:
-            changes['manufacturer_data'] = True
-        
-        if old_device.decoded_manufacturer != new_device.decoded_manufacturer:
-            changes['decoded_manufacturer'] = True
-        
-        return changes
-
     async def _notify_device_created(self, device: Device) -> None:
         """Notify all observers about a new device."""
         tasks = []
