@@ -25,7 +25,6 @@ class Device:
     # Additional fields for manufacturer data
     manufacturer_data: Dict[int, bytes] = field(default_factory=dict)
     decoded_manufacturer: Dict[int, Any] = field(default_factory=dict)
-    beacon_info: Optional[Dict[str, Any]] = None # e.g., for ibeacon details
 
     def connect(self):
         if self.state != DeviceState.DISCONNECTED:

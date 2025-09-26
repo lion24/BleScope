@@ -33,8 +33,7 @@ class EventPublishingObserver(DeviceRepositoryObserver):
             name=device.name,
             rssi=device.rssi.value,
             manufacturer_data={str(k): v.hex() for k, v in device.manufacturer_data.items()},
-            decoded_manufacturer=copy.deepcopy(device.decoded_manufacturer) if device.decoded_manufacturer else {},
-            beacon_info=copy.deepcopy(device.beacon_info) if device.beacon_info else None
+            decoded_manufacturer=copy.deepcopy(device.decoded_manufacturer) if device.decoded_manufacturer else {}
         )
 
         try:

@@ -19,7 +19,6 @@ class DeviceCreated(DeviceEvent):
     name: Optional[str] = None
     manufacturer_data: Dict[str, Any] = field(default_factory=dict)
     decoded_manufacturer: Dict[str, Any]
-    beacon_info: Optional[Dict[str, Any]] = None # e.g., for ibeacon details
 
 @serde
 @dataclass

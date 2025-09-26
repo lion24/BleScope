@@ -18,7 +18,6 @@ class DeviceDTO:
     last_seen: int
     manufacturer_data: Optional[dict] = None
     decoded_manufacturer: Dict[int, Any] = field(default_factory=dict)
-    beacon_info: Optional[Dict[str, Any]] = None # e.g., for ibeacon details
 
 class GetDevicesQueryHandler:
     def __init__(
@@ -46,8 +45,7 @@ class GetDevicesQueryHandler:
                             rssi=device.rssi,
                             last_seen=int(device.last_seen.timestamp()) if device.last_seen else -1,
                             manufacturer_data={k: v.hex() for k, v in device.manufacturer_data.items()},
-                            decoded_manufacturer=device.decoded_manufacturer,
-                            beacon_info=device.beacon_info
+                            decoded_manufacturer=device.decoded_manufacturer
                         )
                     )
 

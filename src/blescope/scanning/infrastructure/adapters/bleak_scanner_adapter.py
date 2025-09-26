@@ -85,8 +85,7 @@ class BleakScannerAdapter(BluetoothScanner):
             state=DeviceState.DISCONNECTED,
             last_seen=datetime.datetime.now(datetime.UTC),
             manufacturer_data=advertisement_data.manufacturer_data if advertisement_data.manufacturer_data else {},
-            decoded_manufacturer=decoded_mfd,
-            beacon_info=None
+            decoded_manufacturer=decoded_mfd
         )
         
         # Save and let repository/observers handle the rest
@@ -138,16 +137,6 @@ class BleakScannerAdapter(BluetoothScanner):
         # TODO: Add other advertisement types as needed
         
         return data
-
-    def _extract_beacon_info(self, decoded_manufacturer: Dict[int, Any]) -> Optional[Dict[str, Any]]:
-        """Extract beacon info if present"""
-        if decoded_manufacturer:
-            for mfg_data in decoded_manufacturer.values():
-                if mfg_data.get('type') in ['ibeacon', 'eddystone']:
-                    return {
-                        'type': mfg_data['type'],
-                        # ... other beacon fields
-                    }
 
     async def stop_scan(self) -> None:
         self.logger.info("Stopping Bluetooth scan")

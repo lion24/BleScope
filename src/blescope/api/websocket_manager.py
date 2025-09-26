@@ -68,8 +68,7 @@ class WebSocketManager:
                     "rssi": event.data["rssi"],
                     "timestamp": event.data["occurred_at"],
                     "manufacturer_data": event.data.get("manufacturer_data", {}),
-                    "decoded_manufacturer": event.data.get("decoded_manufacturer", {}),
-                    "beacon_info": event.data.get("beacon_info", None)
+                    "decoded_manufacturer": event.data.get("decoded_manufacturer", {})
                 }
             }
 
