@@ -2,13 +2,13 @@ import time
 
 from datetime import datetime, UTC
 from dataclasses import dataclass, field
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 from serde import serde
 
 from blescope.shared.domain.base_types import DeviceAddress, RSSI
 
 @serde
-@dataclass
+@dataclass(kw_only=True)
 class DomainEvent:
     """Base class for domain events.
 
@@ -30,12 +30,3 @@ class ScanStopped(DomainEvent):
     """Event triggered when a scan is stopped."""
     scan_id: str
     devices_found: int
-
-@serde
-@dataclass
-class DeviceDiscovered(DomainEvent):
-    """Event triggered when a device is discovered during a scan."""
-    device_address: DeviceAddress
-    device_name: Optional[str]
-    rssi: RSSI
-    manufacturer_data: Dict[int, bytes]

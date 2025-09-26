@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import AsyncIterator
-from blescope.scanning.domain.discovered_device import DiscoveredDevice
+from blescope.device_management.domain.device import Device
 
 class BluetoothScanner(ABC):
     @abstractmethod
-    async def start_scan(self) -> AsyncIterator[DiscoveredDevice]:
+    async def start_scan(self) -> None:
         """Start scanning and yield discovered devices."""
         pass
 

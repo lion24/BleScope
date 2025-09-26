@@ -1,6 +1,6 @@
 # BleScope - Bluetooth Low Energy Scanner
 
-![dashboard](screenshots/scanning_dashboard.png)
+<video width="1686" height="1290" src="https://github.com/user-attachments/assets/de877b7b-40cc-4c3e-a639-b79fb6ce4586"></video>
 
 This file provides guidance to BleScope's architecture, design patterns, and development commands.
 
