@@ -1,11 +1,13 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BleScope</title>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bluetooth Scanner</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus"></script>
     <style>
-        [x-cloak] { display: none !important; }
         .device-card {
             transition: all 0.3s ease;
         }
@@ -20,363 +22,290 @@
         .scanning-indicator {
             animation: pulse 2s infinite;
         }
+        .manufacturer-details {
+            max-height: 200px;
+            overflow-y: auto;
+        }
     </style>
 </head>
-<body class="bg-gray-100">
-    <div x-data="bluetoothScanner()" x-init="init()" class="container mx-auto px-4 py-8 max-w-6xl">
-        <!-- Header -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h1 class="text-3xl font-bold text-gray-800 mb-4">BleScope</h1>
-
-            <!-- Control Panel -->
-            <div class="flex flex-wrap gap-4 items-center">
-                <button 
-                    @click="toggleScan()"
-                    :disabled="loading"
-                    class="px-6 py-2 rounded-lg font-medium transition-colors duration-200"
-                    :class="scanning ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white disabled:bg-gray-400'"
-                >
-                    <span x-show="!scanning && !loading">Start Scan</span>
-                    <span x-show="scanning && !loading">Stop Scan</span>
-                    <span x-show="loading">Processing...</span>
-                </button>
-                
-                <div x-show="scanning" class="flex items-center gap-2">
-                    <div class="scanning-indicator w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <span class="text-gray-600">Scanning for devices...</span>
-                </div>
-                
-                <div class="ml-auto text-gray-600">
-                    <span>Devices found: </span>
-                    <span class="font-bold" x-text="Object.keys(devices).length"></span>
-                </div>
-            </div>
-            
-            <!-- WebSocket Status -->
-            <div class="mt-4 text-sm">
-                <span class="text-gray-600">Connection: </span>
-                <span :class="wsConnected ? 'text-green-600' : 'text-red-600'" x-text="wsConnected ? 'Connected' : 'Disconnected'"></span>
-            </div>
-        </div>
-
-        <!-- Filter and Sort -->
-        <div class="bg-white rounded-lg shadow-md p-4 mb-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Filter by name</label>
-                    <input 
-                        type="text" 
-                        x-model="filter.name"
-                        placeholder="Device name..."
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Min RSSI (dBm)</label>
-                    <input 
-                        type="number" 
-                        x-model.number="filter.minRssi"
-                        placeholder="-100"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Sort by</label>
-                    <select 
-                        x-model="sortBy"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                        <option value="rssi">Signal Strength</option>
-                        <option value="name">Name</option>
-                        <option value="discovered">Discovery Time</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-
-        <!-- Device List -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" x-cloak>
-            <template x-for="device in filteredAndSortedDevices" :key="device.address">
-                <div class="device-card bg-white rounded-lg shadow-md p-6 hover:shadow-lg">
-                    <!-- Device Header -->
-                    <div class="flex justify-between items-start mb-4">
-                        <div>
-                            <h3 class="font-semibold text-lg text-gray-800" x-text="device.name || 'Unknown Device'"></h3>
-                            <p class="text-sm text-gray-600 font-mono" x-text="device.address"></p>
-                        </div>
-                        <div class="text-right">
-                            <div class="text-2xl font-bold" :class="getRssiColor(device.rssi)">
-                                <span x-text="device.rssi"></span>
-                                <span class="text-sm font-normal">dBm</span>
-                            </div>
-                            <div class="text-xs text-gray-500">
-                                <span x-text="getRssiStrength(device.rssi)"></span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Device Info -->
-                    <div class="space-y-2 mb-4">
-                        <div class="text-sm text-gray-600">
-                            <span class="font-medium">Last seen: </span>
-                            <span x-text="formatTime(device.timestamp)"></span>
+<body>
+    <div id="app">
+        <el-container>
+            <el-main>
+                <div style="max-width: 1200px; margin: 0 auto; padding: 20px;">
+                    <!-- Header -->
+                    <el-card class="mb-4">
+                        <h1 style="font-size: 24px; margin-bottom: 16px;">Bluetooth Scanner</h1>
+                        
+                        <!-- Control Panel -->
+                        <el-row :gutter="20" align="middle">
+                            <el-col :span="6">
+                                <el-button 
+                                    :type="scanning ? 'danger' : 'primary'"
+                                    :loading="loading"
+                                    @click="toggleScan"
+                                >
+                                    {{ scanning ? 'Stop Scan' : 'Start Scan' }}
+                                </el-button>
+                            </el-col>
+                            
+                            <el-col :span="12">
+                                <div v-if="scanning" style="display: flex; align-items: center; gap: 8px;">
+                                    <div class="scanning-indicator" style="width: 12px; height: 12px; background-color: #409EFF; border-radius: 50%;"></div>
+                                    <span>Scanning for devices...</span>
+                                </div>
+                            </el-col>
+                            
+                            <el-col :span="6" style="text-align: right;">
+                                <span>Devices found: </span>
+                                <el-tag>{{ Object.keys(devices).length }}</el-tag>
+                            </el-col>
+                        </el-row>
+                        
+                        <!-- WebSocket Status -->
+                        <div style="margin-top: 16px;">
+                            <el-text :type="wsConnected ? 'success' : 'danger'">
+                                Connection: {{ wsConnected ? 'Connected' : 'Disconnected' }}
+                            </el-text>
                         </div>
                         
-                        <!-- Manufacturer/Vendor Info -->
-                        <div x-show="device.decoded_manufacturer && Object.keys(device.decoded_manufacturer).length > 0">
-                            <template x-for="[companyId, mfgData] in Object.entries(device.decoded_manufacturer || {})" :key="companyId">
-                                <div class="bg-gray-50 rounded p-2 text-sm mb-2">
-                                    <div class="flex justify-between items-start">
-                                        <div class="font-medium text-gray-700" x-text="mfgData.company_name"></div>
-                                        <div class="text-xs text-gray-500">ID: 0x<span x-text="parseInt(companyId).toString(16).padStart(4, '0').toUpperCase()"></span></div>
+                        <!-- Device Type Statistics -->
+                        <el-row v-if="Object.keys(devices).length > 0" :gutter="20" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #E4E7ED;">
+                            <el-col :span="6" style="text-align: center;">
+                                <el-statistic title="iBeacons" :value="getDeviceCountByType('ibeacon')" />
+                            </el-col>
+                            <el-col :span="6" style="text-align: center;">
+                                <el-statistic title="Eddystone" :value="getDeviceCountByType('eddystone')" />
+                            </el-col>
+                            <el-col :span="6" style="text-align: center;">
+                                <el-statistic title="AirPods" :value="getDeviceCountByType('airpods')" />
+                            </el-col>
+                            <el-col :span="6" style="text-align: center;">
+                                <el-statistic title="Others" :value="Object.keys(devices).length - getDeviceCountByType('ibeacon') - getDeviceCountByType('eddystone') - getDeviceCountByType('airpods')" />
+                            </el-col>
+                        </el-row>
+                    </el-card>
+                    
+                    <!-- Filter and Sort -->
+                    <el-card class="mb-4">
+                        <el-row :gutter="20">
+                            <el-col :span="8">
+                                <el-input 
+                                    v-model="filter.name"
+                                    placeholder="Filter by name..."
+                                    clearable
+                                >
+                                    <template #prefix>
+                                        <el-icon><Search /></el-icon>
+                                    </template>
+                                </el-input>
+                            </el-col>
+                            <el-col :span="8">
+                                <el-input-number 
+                                    v-model="filter.minRssi"
+                                    :min="-120"
+                                    :max="0"
+                                    placeholder="Min RSSI"
+                                    style="width: 100%;"
+                                />
+                            </el-col>
+                            <el-col :span="8">
+                                <el-select v-model="sortBy" placeholder="Sort by" style="width: 100%;">
+                                    <el-option label="Signal Strength" value="rssi" />
+                                    <el-option label="Name" value="name" />
+                                    <el-option label="Discovery Time" value="discovered" />
+                                    <el-option label="Distance (Beacons)" value="distance" />
+                                </el-select>
+                            </el-col>
+                        </el-row>
+                    </el-card>
+                    
+                    <!-- Device List -->
+                    <el-row :gutter="20">
+                        <el-col v-for="device in filteredAndSortedDevices" :key="device.address" :xs="24" :sm="12" :md="8" :lg="8">
+                            <el-card class="device-card mb-4" shadow="hover">
+                                <!-- Device Header -->
+                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
+                                    <div>
+                                        <h3 style="margin: 0; font-size: 18px;">{{ device.name || 'Unknown Device' }}</h3>
+                                        <el-text type="info" size="small" style="font-family: monospace;">{{ device.address }}</el-text>
                                     </div>
-                                    
-                                    <!-- Device Type Badge if decoded -->
-                                    <div x-show="mfgData.type" class="mt-1">
-                                        <span class="inline-block px-2 py-1 text-xs rounded-full"
-                                              :class="{
-                                                  'bg-blue-100 text-blue-700': mfgData.type === 'ibeacon',
-                                                  'bg-green-100 text-green-700': mfgData.type === 'eddystone',
-                                                  'bg-purple-100 text-purple-700': mfgData.type === 'airpods',
-                                                  'bg-gray-100 text-gray-700': !['ibeacon', 'eddystone', 'airpods'].includes(mfgData.type)
-                                              }"
-                                              x-text="mfgData.type ? mfgData.type.toUpperCase() : 'UNKNOWN'">
-                                        </span>
-                                    </div>
-                                    
-                                    <!-- Beacon Details -->
-                                    <div x-show="mfgData.type === 'ibeacon'" class="mt-1 space-y-1">
-                                        <div class="text-xs text-gray-600">
-                                            <span class="font-medium">UUID:</span>
-                                            <span x-text="mfgData.uuid ? mfgData.uuid.substring(0, 8) + '...' : ''"></span>
+                                    <div style="text-align: right;">
+                                        <div style="font-size: 24px; font-weight: bold;" :style="{ color: getRssiColor(device.rssi) }">
+                                            {{ device.rssi }}
+                                            <span style="font-size: 12px; font-weight: normal;">dBm</span>
                                         </div>
-                                        <div class="text-xs text-gray-600">
-                                            <span class="font-medium">Major/Minor:</span>
-                                            <span x-text="`${mfgData.major || 0}/${mfgData.minor || 0}`"></span>
-                                        </div>
-                                        <div x-show="mfgData.estimated_distance" class="text-xs font-medium text-blue-600">
-                                            <span>📍 ~</span>
-                                            <span x-text="mfgData.estimated_distance ? mfgData.estimated_distance.toFixed(1) : ''"></span>
-                                            <span>meters</span>
-                                        </div>
+                                        <el-tag size="small" :type="getRssiType(device.rssi)">
+                                            {{ getRssiStrength(device.rssi) }}
+                                        </el-tag>
                                     </div>
                                 </div>
-                            </template>
-                        </div>
-                        <!-- Fallback for devices without decoded data -->
-                        <div x-show="(!device.decoded_manufacturer || Object.keys(device.decoded_manufacturer).length === 0) && device.manufacturer_data && Object.keys(device.manufacturer_data).length > 0" 
-                             class="text-sm text-gray-600">
-                            <span class="font-medium">Manufacturer: </span>
-                            <span x-text="Object.keys(device.manufacturer_data || {}).join(', ')"></span>
-                        </div>
-                    </div>
-
-                    <!-- Actions -->
-                    <div class="flex gap-2">
-                        <button 
-                            @click="connectDevice(device.address)"
-                            :disabled="device.connecting || device.connected"
-                            class="flex-1 px-3 py-2 text-sm rounded-md transition-colors duration-200"
-                            :class="device.connected ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'"
-                        >
-                            <span x-show="!device.connecting && !device.connected">Connect</span>
-                            <span x-show="device.connecting">Connecting...</span>
-                            <span x-show="device.connected">Connected</span>
-                        </button>
-                        <button 
-                            @click="device.showDetails = !device.showDetails"
-                            class="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors duration-200"
-                        >
-                            Details
-                        </button>
-                    </div>
-
-                    <!-- Expandable Details -->
-                    <div x-show="device.showDetails" x-transition class="mt-4 pt-4 border-t border-gray-200">
-                        <div class="space-y-2">
-                            <button 
-                                @click="getServices(device.address)"
-                                :disabled="!device.connected"
-                                class="w-full px-3 py-2 text-sm bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 transition-colors duration-200 disabled:bg-gray-100 disabled:text-gray-400"
-                            >
-                                Discover Services
-                            </button>
-                            
-                            <!-- Services List -->
-                            <div x-show="device.services && device.services.length > 0" class="mt-2">
-                                <h4 class="font-medium text-sm text-gray-700 mb-1">Services:</h4>
-                                <div class="space-y-1 max-h-40 overflow-y-auto">
-                                    <template x-for="service in device.services" :key="service.uuid">
-                                        <div class="text-xs bg-gray-50 p-2 rounded">
-                                            <div class="font-mono text-gray-600" x-text="service.uuid"></div>
-                                            <div class="text-gray-500">
-                                                <span x-text="service.characteristics.length"></span> characteristics
+                                
+                                <!-- Device Info -->
+                                <div style="margin-bottom: 16px;">
+                                    <div style="margin-bottom: 8px;">
+                                        <el-text type="info" size="small">Last seen: </el-text>
+                                        <el-text size="small">{{ formatTime(device.timestamp) }}</el-text>
+                                    </div>
+                                    
+                                    <!-- Manufacturer/Vendor Info -->
+                                    <div v-if="device.decoded_manufacturer && Object.keys(device.decoded_manufacturer).length > 0">
+                                        <div v-for="(mfgData, companyId) in device.decoded_manufacturer" :key="device.address + '-' + companyId" 
+                                             style="background-color: #F5F7FA; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
+                                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                <el-text strong>{{ mfgData.company_name }}</el-text>
+                                                <el-text type="info" size="small">ID: 0x{{ parseInt(companyId).toString(16).padStart(4, '0').toUpperCase() }}</el-text>
+                                            </div>
+                                            
+                                            <!-- Device Type Badge -->
+                                            <el-tag v-if="mfgData.type" size="small" style="margin-top: 4px;"
+                                                   :type="getDeviceTypeTagType(mfgData.type)">
+                                                {{ mfgData.type.toUpperCase() }}
+                                            </el-tag>
+                                            
+                                            <!-- Beacon Details -->
+                                            <div v-if="mfgData.type === 'ibeacon'" style="margin-top: 8px;">
+                                                <el-descriptions :column="1" size="small">
+                                                    <el-descriptions-item label="UUID">
+                                                        {{ mfgData.uuid ? mfgData.uuid.substring(0, 8) + '...' : '' }}
+                                                    </el-descriptions-item>
+                                                    <el-descriptions-item label="Major/Minor">
+                                                        {{ mfgData.major || 0 }}/{{ mfgData.minor || 0 }}
+                                                    </el-descriptions-item>
+                                                    <el-descriptions-item v-if="mfgData.estimated_distance" label="Distance">
+                                                        <el-text type="primary">📍 ~{{ mfgData.estimated_distance.toFixed(1) }} meters</el-text>
+                                                    </el-descriptions-item>
+                                                </el-descriptions>
+                                            </div>
+                                            
+                                            <!-- Eddystone Details -->
+                                            <div v-if="mfgData.type === 'eddystone'" style="margin-top: 8px;">
+                                                <el-descriptions :column="1" size="small">
+                                                    <el-descriptions-item label="Frame">{{ mfgData.frame_type }}</el-descriptions-item>
+                                                    <el-descriptions-item v-if="mfgData.url" label="URL">
+                                                        <el-link :href="mfgData.url" target="_blank" type="primary">{{ mfgData.url }}</el-link>
+                                                    </el-descriptions-item>
+                                                </el-descriptions>
+                                            </div>
+                                            
+                                            <!-- AirPods Details -->
+                                            <div v-if="mfgData.type === 'airpods'" style="margin-top: 8px;">
+                                                <el-text v-if="mfgData.model" size="small">Model: {{ mfgData.model }}</el-text>
+                                                <el-space wrap style="margin-top: 4px;">
+                                                    <el-tag v-if="mfgData.left_battery !== null" size="small"
+                                                           :type="mfgData.left_battery < 20 ? 'danger' : 'info'">
+                                                        L: {{ mfgData.left_battery }}%
+                                                    </el-tag>
+                                                    <el-tag v-if="mfgData.right_battery !== null" size="small"
+                                                           :type="mfgData.right_battery < 20 ? 'danger' : 'info'">
+                                                        R: {{ mfgData.right_battery }}%
+                                                    </el-tag>
+                                                    <el-tag v-if="mfgData.case_battery !== null" size="small"
+                                                           :type="mfgData.case_battery < 20 ? 'danger' : 'info'">
+                                                        Case: {{ mfgData.case_battery }}%
+                                                    </el-tag>
+                                                </el-space>
+                                                <div v-if="mfgData.charging">
+                                                    <el-text type="success" size="small">🔌 Charging</el-text>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Raw data -->
+                                            <el-collapse v-if="!mfgData.type || mfgData.raw_hex" style="margin-top: 8px;">
+                                                <el-collapse-item :title="`Raw data (${mfgData.raw_length || 0} bytes)`">
+                                                    <div style="font-family: monospace; word-break: break-all; background-color: #F5F7FA; padding: 8px; border-radius: 4px;">
+                                                        {{ mfgData.raw_hex || 'No data' }}
+                                                    </div>
+                                                </el-collapse-item>
+                                            </el-collapse>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Fallback -->
+                                    <div v-else>
+                                        <el-text type="info" size="small" style="font-style: italic;">
+                                            No manufacturer data available
+                                        </el-text>
+                                    </div>
+                                </div>
+                                
+                                <!-- Actions -->
+                                <el-space>
+                                    <el-button 
+                                        size="small"
+                                        :type="device.connected ? 'success' : 'primary'"
+                                        :loading="device.connecting"
+                                        :disabled="device.connected"
+                                        @click="connectDevice(device.address)"
+                                    >
+                                        {{ device.connected ? 'Connected' : device.connecting ? 'Connecting...' : 'Connect' }}
+                                    </el-button>
+                                    <el-button size="small" @click="device.showDetails = !device.showDetails">
+                                        Details
+                                    </el-button>
+                                </el-space>
+                                
+                                <!-- Expandable Details -->
+                                <el-collapse-transition>
+                                    <div v-show="device.showDetails" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #E4E7ED;">
+                                        <el-button 
+                                            size="small"
+                                            :disabled="!device.connected"
+                                            @click="getServices(device.address)"
+                                            style="width: 100%; margin-bottom: 8px;"
+                                        >
+                                            Discover Services
+                                        </el-button>
+                                        
+                                        <!-- Services List -->
+                                        <div v-if="device.services && device.services.length > 0" class="manufacturer-details">
+                                            <el-text strong size="small">Services:</el-text>
+                                            <div v-for="service in device.services" :key="service.uuid" 
+                                                 style="background-color: #F5F7FA; padding: 8px; margin-top: 4px; border-radius: 4px;">
+                                                <el-text size="small" style="font-family: monospace;">{{ service.uuid }}</el-text>
+                                                <br>
+                                                <el-text type="info" size="small">{{ service.characteristics.length }} characteristics</el-text>
                                             </div>
                                         </div>
-                                    </template>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </template>
-        </div>
-
-        <!-- Empty State -->
-        <div x-show="Object.keys(devices).length === 0" class="text-center py-12">
-            <div class="text-gray-400 text-6xl mb-4">📡</div>
-            <p class="text-gray-600 text-lg">No devices discovered yet</p>
-            <p class="text-gray-500">Start scanning to discover nearby Bluetooth devices</p>
-        </div>
-
-        <!-- Error Message -->
-        <div x-show="error" x-transition class="fixed bottom-4 right-4 bg-red-100 text-red-700 px-6 py-3 rounded-lg shadow-lg">
-            <div class="flex items-center gap-2">
-                <span>❌</span>
-                <span x-text="error"></span>
-                <button @click="error = null" class="ml-4 font-bold">×</button>
-            </div>
-        </div>
-    </div>
-    <script>
-        function bluetoothScanner() {
-            return {
-                devices: {},
-                scanning: false,
-                loading: false,
-                wsConnected: false,
-                ws: null,
-                error: null,
-                filter: {
-                    name: '',
-                    minRssi: -100
-                },
-                sortBy: 'rssi',
-
-                init() {
-                    this.connectWebSocket();
-                    this.checkScanStatus();
-                },
-
-                connectWebSocket() {
-                    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-                    const wsUrl = `${protocol}://${window.location.host}/ws`;
+                                    </div>
+                                </el-collapse-transition>
+                            </el-card>
+                        </el-col>
+                    </el-row>
                     
-                    this.ws = new WebSocket(wsUrl);
-                    this.ws.onopen = () => {
-                        this.wsConnected = true;
-                        console.log('WebSocket connected');
-                    };
-                    this.ws.onmessage = (event) => {
-                        const message = JSON.parse(event.data);
-                        this.handleWebSocketMessage(message);
-                    };
-                    this.ws.onclose = () => {
-                        this.wsConnected = false;
-                        console.log('WebSocket disconnected');
-                        setTimeout(() => this.connectWebSocket(), 5000);
-                    };
-
-                },
-
-                async checkScanStatus() {
-                    try {
-                        const response = await fetch('/api/v1/scan/status');
-                        const data = await response.json();
-                        this.scanning = data.is_scanning;
-                    } catch (err) {
-                        console.error('Failed to check scan status:', err);
-                    }
-                },
-
-                toggleScan() {
-                    if (this.scanning) {
-                        this.stopScan();
-                    } else {
-                        this.startScan();
-                    }
-                },
-
-                async startScan() {
-                    this.loading = true;
-                    this.error = null;
-
-                    try {
-                        const response = await fetch('/api/v1/scan/start', { method: 'POST' });
-
-                        if (!response.ok) {
-                            throw new Error(`Fail to start scan: ${response.statusText}`);
-                        }
-
-                        this.scanning = true;
-                        this.devices = {}; // Clear previous devices
-                    } catch (err) {
-                        this.error = err.message;
-                        console.error(err);
-                    } finally {
-                        this.loading = false;
-                    }
-                },
-
-                async stopScan() {
-                    this.loading = true;
-                    this.error = null;
-
-                    try {
-                        const response = await fetch('/api/v1/scan/stop', { method: 'POST' });
-
-                        if (!response.ok) {
-                            throw new Error(`Fail to stop scan: ${response.statusText}`);
-                        }
-
-                        this.scanning = false;
-                    } catch (err) {
-                        this.error = err.message;
-                        console.error(err);
-                    } finally {
-                        this.loading = false;
-                    }
-                },
-
-                handleWebSocketMessage(message) {
-                    switch (message.type) {
-                        case 'scan_started':
-                            this.scanning = true;
-                            break;
-                        case 'scan_stopped':
-                            this.scanning = false;
-                            break;
-                        case 'device_created':
-                            this.addOrUpdateDevice(message.data);
-                            break;
-                        case 'device_updated':
-                            const {address, changes, timestamp} = message.data
-                            this.addOrUpdateDevice(
-                                {
-                                    ...this.devices[address],
-                                    timestamp: new Date(timestamp).toISOString(),
-                                    ...changes,
-                                }
-                            )
-                            break;
-                        default:
-                            console.warn('Unknown message type:', JSON.stringify(message.type));
-                    }
-                },
-
-                addOrUpdateDevice(deviceData) {
-                    console.log('Device created:', deviceData);
-                    const device = {
-                        ...deviceData,
-                        manufacturer_data: deviceData.manufacturer_data || {},
-                        decoded_manufacturer: deviceData.decoded_manufacturer || {},
-                        showDetails: this.devices[deviceData.address]?.showDetails || false
-                    };
-
-                    this.devices[device.address] = device;
-                },
-
-                get filteredAndSortedDevices() {
+                    <!-- Empty State -->
+                    <el-empty v-if="Object.keys(devices).length === 0" description="No devices discovered yet">
+                        <el-button type="primary" @click="startScan" :loading="loading">Start Scanning</el-button>
+                    </el-empty>
+                </div>
+            </el-main>
+        </el-container>
+        
+        <!-- Error Notification handled by Element Plus -->
+    </div>
+    
+    <script>
+        const { createApp } = Vue;
+        
+        createApp({
+            data() {
+                return {
+                    devices: {},
+                    scanning: false,
+                    loading: false,
+                    wsConnected: false,
+                    ws: null,
+                    error: null,
+                    filter: {
+                        name: '',
+                        minRssi: -100
+                    },
+                    sortBy: 'rssi'
+                };
+            },
+            
+            computed: {
+                filteredAndSortedDevices() {
                     let filtered = Object.values(this.devices).filter(device => {
                         if (this.filter.name && !device.name?.toLowerCase().includes(this.filter.name.toLowerCase())) {
                             return false;
@@ -384,41 +313,264 @@
                         if (device.rssi < this.filter.minRssi) {
                             return false;
                         }
+                        
                         return true;
                     });
-
+                    
                     return filtered.sort((a, b) => {
                         switch (this.sortBy) {
                             case 'rssi':
                                 return b.rssi - a.rssi;
                             case 'name':
                                 return (a.name || 'ZZZ').localeCompare(b.name || 'ZZZ');
+                            case 'discovered':
+                                return new Date(b.timestamp) - new Date(a.timestamp);
+                            case 'distance':
+                                const getDistance = (device) => {
+                                    for (const mfg of Object.values(device.decoded_manufacturer || {})) {
+                                        if (mfg.estimated_distance) {
+                                            return mfg.estimated_distance;
+                                        }
+                                    }
+                                    return 999999;
+                                };
+                                return getDistance(a) - getDistance(b);
                             default:
                                 return 0;
                         }
-                    })
+                    });
+                }
+            },
+            
+            mounted() {
+                this.connectWebSocket();
+                this.checkScanStatus();
+            },
+            
+            methods: {
+                connectWebSocket() {
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const wsUrl = `${protocol}//${window.location.host}/ws`;
+                    
+                    this.ws = new WebSocket(wsUrl);
+                    
+                    this.ws.onopen = () => {
+                        this.wsConnected = true;
+                        console.log('WebSocket connected');
+                    };
+                    
+                    this.ws.onmessage = (event) => {
+                        const message = JSON.parse(event.data);
+                        this.handleWebSocketMessage(message);
+                    };
+                    
+                    this.ws.onclose = () => {
+                        this.wsConnected = false;
+                        console.log('WebSocket disconnected');
+                        setTimeout(() => this.connectWebSocket(), 3000);
+                    };
+                    
+                    this.ws.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                    };
                 },
-
+                
+                handleWebSocketMessage(message) {
+                    switch (message.type) {
+                        case 'device_created':
+                        case 'device_discovered':
+                            this.addOrUpdateDevice(message.data);
+                            break;
+                        case 'device_updated':
+                            const { address, changes, timestamp } = message.data;
+                            this.addOrUpdateDevice(
+                                {
+                                    address: address,
+                                    timestamp: new Date(timestamp).toISOString(),
+                                    ...changes,
+                                }
+                            )
+                            break;
+                        case 'scan_started':
+                            this.scanning = true;
+                            break;
+                        case 'scan_stopped':
+                            this.scanning = false;
+                            break;
+                        case 'device_connected':
+                            this.updateDeviceStatus(message.data.address, { connected: true, connecting: false });
+                            break;
+                        case 'device_disconnected':
+                            this.updateDeviceStatus(message.data.address, { connected: false });
+                            break;
+                    }
+                },
+                
+                async checkScanStatus() {
+                    try {
+                        const response = await fetch('/api/v1/scan/status');
+                        const data = await response.json();
+                        this.scanning = data.is_scanning;
+                    } catch (error) {
+                        console.error('Failed to check scan status:', error);
+                    }
+                },
+                
+                async toggleScan() {
+                    if (this.scanning) {
+                        await this.stopScan();
+                    } else {
+                        await this.startScan();
+                    }
+                },
+                
+                async startScan() {
+                    this.loading = true;
+                    this.error = null;
+                    
+                    try {
+                        const response = await fetch('/api/v1/scan/start', {
+                            method: 'POST'
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error('Failed to start scan');
+                        }
+                        
+                        this.scanning = true;
+                        this.devices = {};
+                    } catch (error) {
+                        this.$message.error('Failed to start scan');
+                        console.error(error);
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                
+                async stopScan() {
+                    this.loading = true;
+                    this.error = null;
+                    
+                    try {
+                        const response = await fetch('/api/v1/scan/stop', {
+                            method: 'POST'
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error('Failed to stop scan');
+                        }
+                        
+                        this.scanning = false;
+                    } catch (error) {
+                        this.$message.error('Failed to stop scan');
+                        console.error(error);
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                
+                addOrUpdateDevice(deviceData) {
+                    const device = {
+                        ...deviceData,
+                        timestamp: new Date(deviceData.timestamp).toISOString(),
+                        decoded_manufacturer: {
+                            ...(this.devices[deviceData.address]?.decoded_manufacturer || {}),
+                            ...(deviceData.decoded_manufacturer || {})
+                        },
+                        showDetails: this.devices[deviceData.address]?.showDetails || false,
+                        connected: this.devices[deviceData.address]?.connected || false,
+                        connecting: this.devices[deviceData.address]?.connecting || false,
+                        services: this.devices[deviceData.address]?.services || []
+                    };
+                    
+                    this.devices = {
+                        ...this.devices,
+                        [device.address]: device
+                    };
+                },
+                
+                updateDeviceStatus(address, status) {
+                    if (this.devices[address]) {
+                        Object.assign(this.devices[address], status);
+                    }
+                },
+                
+                async connectDevice(address) {
+                    this.updateDeviceStatus(address, { connecting: true });
+                    this.error = null;
+                    
+                    try {
+                        const response = await fetch(`/api/v1/devices/${address}/connect`, {
+                            method: 'POST'
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error('Failed to connect');
+                        }
+                    } catch (error) {
+                        this.$message.error(`Failed to connect to ${address}`);
+                        this.updateDeviceStatus(address, { connecting: false });
+                    }
+                },
+                
+                async getServices(address) {
+                    this.error = null;
+                    
+                    try {
+                        const response = await fetch(`/api/v1/devices/${address}/services`);
+                        
+                        if (!response.ok) {
+                            throw new Error('Failed to get services');
+                        }
+                        
+                        const data = await response.json();
+                        this.devices[address].services = data.services;
+                    } catch (error) {
+                        this.$message.error(`Failed to get services for ${address}`);
+                    }
+                },
+                
                 getRssiColor(rssi) {
-                    if (rssi >= -50) return 'text-green-600';
-                    if (rssi >= -70) return 'text-yellow-600';
-                    if (rssi >= -85) return 'text-orange-600';
-                    return 'text-red-600';
+                    if (rssi >= -50) return '#67C23A';
+                    if (rssi >= -70) return '#E6A23C';
+                    if (rssi >= -85) return '#F56C6C';
+                    return '#F56C6C';
                 },
-
+                
+                getRssiType(rssi) {
+                    if (rssi >= -50) return 'success';
+                    if (rssi >= -70) return 'warning';
+                    return 'danger';
+                },
+                
                 getRssiStrength(rssi) {
                     if (rssi >= -50) return 'Excellent';
                     if (rssi >= -70) return 'Good';
                     if (rssi >= -85) return 'Fair';
                     return 'Weak';
                 },
-
+                
                 formatTime(timestamp) {
                     const date = new Date(timestamp);
                     return date.toLocaleTimeString();
+                },
+                
+                getDeviceCountByType(type) {
+                    return Object.values(this.devices).filter(device => 
+                        Object.values(device.decoded_manufacturer || {}).some(mfg => mfg.type === type)
+                    ).length;
+                },
+                
+                getDeviceTypeTagType(type) {
+                    switch (type) {
+                        case 'ibeacon': return 'primary';
+                        case 'eddystone': return 'success';
+                        case 'airpods': return 'warning';
+                        default: return 'info';
+                    }
                 }
             }
-        }
+        }).use(ElementPlus).mount('#app');
     </script>
 </body>
 </html>
