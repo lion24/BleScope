@@ -1,7 +1,6 @@
 import logging
 from fastapi import WebSocket
 from typing import List, Dict
-from serde.json import to_json
 
 from blescope.shared.events.event_bus import EventBus
 
@@ -33,7 +32,7 @@ class WebSocketManager:
         for connection in self.active_connections:
             try:
                 self.logger.debug(f"Sending message to client: {message}")
-                await connection.send_text(to_json(message))
+                await connection.send_json(message)
             except Exception as e:
                 self.logger.error(f"Error sending message to client: {e}", exc_info=True)
 
