@@ -27,7 +27,7 @@ class AdvertisementDecoder(ABC):
         pass
 
     @abstractmethod
-    def decode(self, data: bytes) -> Optional[DecodedAvertisement]:
+    def decode(self, company_id: int, data: bytes) -> Optional[DecodedAvertisement]:
         """Decode raw advertisement data.
 
         Args:

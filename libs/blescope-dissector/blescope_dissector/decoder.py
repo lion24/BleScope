@@ -70,7 +70,7 @@ class ManufacturerDataDecoder:
             for decoder in self._decoders:
                 if decoder.can_decode(company_id, data):
                     try:
-                        decoded_adv = decoder.decode(data)
+                        decoded_adv = decoder.decode(company_id, data)
                     except Exception as e:
                         # Log error and continue
                         self.logger.error(f"Error decoding with {decoder.__class__.__name__}: {e}")

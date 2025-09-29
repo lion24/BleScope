@@ -4,7 +4,7 @@ import datetime
 from bleak import BleakScanner
 from bleak.backends.device import BLEDevice
 from bleak.backends.scanner import AdvertisementData
-from typing import AsyncIterator, Dict, Any, Optional, Set
+from typing import Dict, Any
 
 from blescope.scanning.application.ports.bluetooth_scanner import BluetoothScanner
 from blescope.device_management.application.ports.device_repository import ObservableDeviceRepository
@@ -31,10 +31,10 @@ class BleakScannerAdapter(BluetoothScanner):
         self._scanning = True
 
         # Start the processor task
-        self._processor_task = asyncio.create_task(self._process_queue())
+        self._processor_task = asyncio.create_task(self.__process_queue())
 
         # Create scanner with detection callback
-        self._scanner = BleakScanner(detection_callback=self._detection_callback)
+        self._scanner = BleakScanner(detection_callback=self.__detection_callback)
 
         try:
             # Start scanner in background
@@ -48,16 +48,16 @@ class BleakScannerAdapter(BluetoothScanner):
             self.logger.error(f"Scanner error: {e}", exc_info=True)
             raise
         finally:
-            await self._cleanup()
+            await self.__cleanup()
 
-    def _detection_callback(self, device: BLEDevice, advertisement_data: AdvertisementData):
+    def __detection_callback(self, device: BLEDevice, advertisement_data: AdvertisementData):
         """Callback for when a device is detected."""
         try:
             self._processing_queue.put_nowait((device, advertisement_data))
         except asyncio.QueueFull:
             self.logger.warning("Processing queue is full, dropping detected device.")
 
-    async def _process_queue(self):
+    async def __process_queue(self):
         """Process detected device from queue"""
         while self._scanning or not self._processing_queue.empty():
             try:
@@ -66,17 +66,17 @@ class BleakScannerAdapter(BluetoothScanner):
                     timeout=1.0
                 )
 
-                await self._process_device(device, adv_data)
+                await self.__process_device(device, adv_data)
 
             except asyncio.TimeoutError:
                 continue
             except Exception as e:
                 self.logger.error(f"Error processing device from queue: {e}", exc_info=True)
 
-    async def _process_device(self, device: BLEDevice, advertisement_data: AdvertisementData):
+    async def __process_device(self, device: BLEDevice, advertisement_data: AdvertisementData):
         """Process a single device detection"""
         # Create device entity from advertisement data
-        decoded_mfd = self._decode_manufacturer_data(advertisement_data)
+        decoded_mfd = self.__decode_manufacturer_data(advertisement_data)
 
         device_entity = Device(
             address=DeviceAddress(device.address),
@@ -91,7 +91,7 @@ class BleakScannerAdapter(BluetoothScanner):
         # Save and let repository/observers handle the rest
         await self._device_repo.save(device_entity)
 
-    def _decode_manufacturer_data(self, advertisement_data: AdvertisementData) -> Dict[int, Any]:
+    def __decode_manufacturer_data(self, advertisement_data: AdvertisementData) -> Dict[int, Any]:
         """Decode manufacturer data"""
         decoded = {}
         
@@ -114,12 +114,13 @@ class BleakScannerAdapter(BluetoothScanner):
             # Enhance with decoded information
             if decoded_item.advertisement:
                 decoded[str(decoded_item.company.company_id)].update(
-                    self._extract_advertisement_data(decoded_item.advertisement)
+                    self.__extract_advertisement_data(advertisement_data.rssi, decoded_item.advertisement)
                 )
 
         return decoded
 
-    def _extract_advertisement_data(self, advertisement: Any) -> Dict[str, Any]:
+    @staticmethod
+    def __extract_advertisement_data(rssi: int, advertisement: Any) -> Dict[str, Any]:
         """Extract data from decoded advertisement"""
         # Implementation depends on advertisement type
         # This keeps the decoding logic separate
@@ -131,7 +132,8 @@ class BleakScannerAdapter(BluetoothScanner):
                 'uuid': str(advertisement.uuid),
                 'major': advertisement.major,
                 'minor': advertisement.minor,
-                'tx_power': advertisement.tx_power
+                'tx_power': advertisement.tx_power,
+                'estimated_distance': advertisement.estimate_distance(rssi)  # in meters
             })
 
         # TODO: Add other advertisement types as needed
@@ -141,9 +143,9 @@ class BleakScannerAdapter(BluetoothScanner):
     async def stop_scan(self) -> None:
         self.logger.info("Stopping Bluetooth scan")
         self._scanning = False
-        await self._cleanup()
+        await self.__cleanup()
 
-    async def _cleanup(self):
+    async def __cleanup(self):
         """Cleanup scanner resources."""
         if self._scanner:
             try:
