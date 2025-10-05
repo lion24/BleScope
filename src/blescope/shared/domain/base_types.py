@@ -11,4 +11,4 @@ class RSSI:
 
     def __post_init__(self):
         if not (-127 <= self.value <= 0):
-            raise ValueError("RSSI value must be between -127 and 0 dBm")
+            raise ValueError(f"RSSI value must be between -127 and 0 dBm, got {self.value}")

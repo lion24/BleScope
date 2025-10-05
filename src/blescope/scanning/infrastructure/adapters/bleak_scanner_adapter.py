@@ -104,6 +104,7 @@ class BleakScannerAdapter(BluetoothScanner):
             decoded[str(company_id)] = { # Use str keys for JSON compatibility
                 'company_id': company_id,
                 'company_name': vendor_name,
+                'type': 'unknown',
                 'raw_hex': data_bytes.hex(),
                 'raw_length': len(data_bytes)
             }

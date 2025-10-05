@@ -19,7 +19,7 @@ class InMemoryObservableDeviceRepository(ObservableDeviceRepository):
         self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     async def save(self, device: Device) -> None:
-        """save or update a device and notify observers."""
+        """Save or update a device and notify observers."""
         async with self._lock:
             is_new = device.address not in self._devices
 

@@ -2,21 +2,20 @@ import logging
 from fastapi import WebSocket
 from typing import List, Dict
 
-from blescope.shared.events.event_bus import EventBus
+from blescope.shared.events.event_bus import EventBus, EventType
 
 class WebSocketManager:
     def __init__(self, event_bus: EventBus):
         self.active_connections: List[WebSocket] = []
-        self.event_bus = event_bus
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self._setup_event_handlers()
+        self._setup_event_handlers(event_bus)
 
-    def _setup_event_handlers(self):
+    def _setup_event_handlers(self, bus: EventBus):
         # Subscribe to all domain events
-        self.event_bus.subscribe("ScanStarted", self._handle_scan_started)
-        self.event_bus.subscribe("ScanStopped", self._handle_scan_stopped)
-        self.event_bus.subscribe("DeviceCreated", self._handle_device_created)
-        self.event_bus.subscribe("DeviceUpdated", self._handle_device_update)
+        bus.subscribe(EventType.SCAN_STARTED, self._handle_scan_started)
+        bus.subscribe(EventType.SCAN_STOPPED, self._handle_scan_stopped)
+        bus.subscribe(EventType.DEVICE_CREATED, self._handle_device_created)
+        bus.subscribe(EventType.DEVICE_UPDATED, self._handle_device_update)
         
     async def connect(self, websocket: WebSocket):
         await websocket.accept()

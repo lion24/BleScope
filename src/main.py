@@ -1,5 +1,7 @@
 import logging
 import uvicorn
+from cProfile import Profile
+from pstats import Stats
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -16,7 +18,7 @@ settings = Settings()
 
 # Setup logging
 setup_logging(settings.log_level)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("blescope.main")
 
 # Application dependencies
 app_dependencies = None

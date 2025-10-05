@@ -33,20 +33,13 @@ class GetDevicesQueryHandler:
         if not scan:
             return []
 
-        devices = []
-
-        if self.device_repo and query.include_details:
-            for device in await self.device_repo.get_all():
-                if device:
-                    devices.append(
-                        DeviceDTO(
-                            device_address=device.address,
-                            name=device.name,
-                            rssi=device.rssi,
-                            last_seen=int(device.last_seen.timestamp()) if device.last_seen else -1,
-                            manufacturer_data={k: v.hex() for k, v in device.manufacturer_data.items()},
-                            decoded_manufacturer=device.decoded_manufacturer
-                        )
-                    )
-
-        return devices
+        return [
+                DeviceDTO(
+                    device_address=str(device.address),
+                    name=device.name,
+                    rssi=device.rssi.value,
+                    last_seen=int(device.last_seen.timestamp()) if device.last_seen else -1,
+                    manufacturer_data={k: v.hex() for k, v in device.manufacturer_data.items()},
+                    decoded_manufacturer=device.decoded_manufacturer
+                ) for device in await self.device_repo.get_all() if device
+            ]
