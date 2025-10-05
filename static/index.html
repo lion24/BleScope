@@ -8,12 +8,6 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://unpkg.com/element-plus"></script>
     <style>
-        .device-card {
-            transition: all 0.3s ease;
-        }
-        .device-card:hover {
-            transform: translateY(-2px);
-        }
         @keyframes pulse {
             0% { opacity: 1; }
             50% { opacity: 0.5; }
@@ -25,6 +19,51 @@
         .manufacturer-details {
             max-height: 200px;
             overflow-y: auto;
+        }
+        .device-table {
+            width: 100%;
+        }
+        .device-table .el-table__body-wrapper {
+            overflow-x: auto;
+        }
+        .rssi-cell {
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .address-cell {
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .device-type-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .expanded-details {
+            background-color: #fafafa;
+            padding: 16px;
+            border: 1px solid #e4e7ed;
+            border-radius: 4px;
+            margin: 8px 0;
+        }
+        .beacon-details {
+            background-color: #f5f7fa;
+            padding: 12px;
+            border-radius: 4px;
+            margin: 8px 0;
+        }
+        .raw-data {
+            font-family: monospace;
+            word-break: break-all;
+            background-color: #f5f7fa;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        @media (max-width: 768px) {
+            .device-table .el-table__body-wrapper {
+                overflow-x: scroll;
+            }
         }
     </style>
 </head>
@@ -92,13 +131,9 @@
                             <el-col :span="8">
                                 <el-input 
                                     v-model="filter.name"
-                                    placeholder="Filter by name..."
+                                    placeholder="🔍 Filter by name..."
                                     clearable
-                                >
-                                    <template #prefix>
-                                        <el-icon><Search /></el-icon>
-                                    </template>
-                                </el-input>
+                                />
                             </el-col>
                             <el-col :span="8">
                                 <el-input-number 
@@ -120,68 +155,45 @@
                         </el-row>
                     </el-card>
                     
-                    <!-- Device List -->
-                    <el-row :gutter="20">
-                        <el-col v-for="device in filteredAndSortedDevices" :key="device.address" :xs="24" :sm="12" :md="8" :lg="8">
-                            <el-card class="device-card mb-4" shadow="hover">
-                                <!-- Device Header -->
-                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
-                                    <div>
-                                        <h3 style="margin: 0; font-size: 18px;">{{ device.name || 'Unknown Device' }}</h3>
-                                        <el-text type="info" size="small" style="font-family: monospace;">{{ device.address }}</el-text>
-                                    </div>
-                                    <div style="text-align: right;">
-                                        <div style="font-size: 24px; font-weight: bold;" :style="{ color: getRssiColor(device.rssi) }">
-                                            {{ device.rssi }}
-                                            <span style="font-size: 12px; font-weight: normal;">dBm</span>
-                                        </div>
-                                        <el-tag size="small" :type="getRssiType(device.rssi)">
-                                            {{ getRssiStrength(device.rssi) }}
-                                        </el-tag>
-                                    </div>
-                                </div>
-                                
-                                <!-- Device Info -->
-                                <div style="margin-bottom: 16px;">
-                                    <div style="margin-bottom: 8px;">
-                                        <el-text type="info" size="small">Last seen: </el-text>
-                                        <el-text size="small">{{ formatTime(device.timestamp) }}</el-text>
-                                    </div>
-                                    
-                                    <!-- Manufacturer/Vendor Info -->
-                                    <div v-if="device.decoded_manufacturer && Object.keys(device.decoded_manufacturer).length > 0">
-                                        <div v-for="(mfgData, companyId) in device.decoded_manufacturer" :key="device.address + '-' + companyId" 
-                                             style="background-color: #F5F7FA; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
-                                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <!-- Device Table -->
+                    <el-table 
+                        :data="filteredAndSortedDevices" 
+                        class="device-table"
+                        stripe
+                        :default-sort="{ prop: 'rssi', order: 'descending' }"
+                        @sort-change="handleSort"
+                    > <!-- row-key="row => row.address || row.timestamp || Math.random()" -->
+                        <!-- Expandable Details -->
+                        <el-table-column type="expand">
+                            <template #default="{ row }">
+                                <div class="expanded-details">
+                                    <!-- Manufacturer Details -->
+                                    <div v-if="row.decoded_manufacturer && Object.keys(row.decoded_manufacturer).length > 0">
+                                        <h4>Manufacturer Information</h4>
+                                        <div v-for="(mfgData, companyId) in row.decoded_manufacturer" :key="row.address + '-' + companyId" class="beacon-details">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                                                 <el-text strong>{{ mfgData.company_name }}</el-text>
                                                 <el-text type="info" size="small">ID: 0x{{ parseInt(companyId).toString(16).padStart(4, '0').toUpperCase() }}</el-text>
                                             </div>
                                             
-                                            <!-- Device Type Badge -->
-                                            <el-tag v-if="mfgData.type" size="small" style="margin-top: 4px;"
-                                                   :type="getDeviceTypeTagType(mfgData.type)">
-                                                {{ mfgData.type.toUpperCase() }}
-                                            </el-tag>
-                                            
-                                            <!-- Beacon Details -->
-                                            <div v-if="mfgData.type === 'ibeacon'" style="margin-top: 8px;">
-                                                <el-descriptions :column="1" size="small">
-                                                    <el-descriptions-item label="UUID">
-                                                        {{ mfgData.uuid ? mfgData.uuid.substring(0, 8) + '...' : '' }}
-                                                    </el-descriptions-item>
-                                                    <el-descriptions-item label="Major/Minor">
-                                                        {{ mfgData.major || 0 }}/{{ mfgData.minor || 0 }}
-                                                    </el-descriptions-item>
-                                                    <el-descriptions-item v-if="mfgData.estimated_distance" label="Distance">
-                                                        <el-text type="primary">📍 ~{{ mfgData.estimated_distance.toFixed(1) }} meters</el-text>
-                                                    </el-descriptions-item>
+                                            <!-- iBeacon Details -->
+                                            <div v-if="mfgData?.type === 'ibeacon'">
+                                                <el-descriptions :column="2" size="small" border>
+                                                    <el-descriptions-item label="UUID">{{ mfgData.uuid }}</el-descriptions-item>
+                                                    <el-descriptions-item label="Major">{{ mfgData.major || 0 }}</el-descriptions-item>
+                                                    <el-descriptions-item label="Minor">{{ mfgData.minor || 0 }}</el-descriptions-item>
+                                                    <!-- <el-descriptions-item v-if="typeof mfgData.estimated_distance === 'number'" label="Distance">
+                                                        <el-text type="primary">
+                                                            📍 ~{{ mfgData.estimated_distance.toFixed(1) }} meters
+                                                        </el-text>
+                                                    </el-descriptions-item> -->
                                                 </el-descriptions>
                                             </div>
                                             
                                             <!-- Eddystone Details -->
-                                            <div v-if="mfgData.type === 'eddystone'" style="margin-top: 8px;">
-                                                <el-descriptions :column="1" size="small">
-                                                    <el-descriptions-item label="Frame">{{ mfgData.frame_type }}</el-descriptions-item>
+                                            <div v-if="mfgData?.type === 'eddystone'">
+                                                <el-descriptions :column="2" size="small" border>
+                                                    <el-descriptions-item label="Frame Type">{{ mfgData.frame_type }}</el-descriptions-item>
                                                     <el-descriptions-item v-if="mfgData.url" label="URL">
                                                         <el-link :href="mfgData.url" target="_blank" type="primary">{{ mfgData.url }}</el-link>
                                                     </el-descriptions-item>
@@ -189,89 +201,151 @@
                                             </div>
                                             
                                             <!-- AirPods Details -->
-                                            <div v-if="mfgData.type === 'airpods'" style="margin-top: 8px;">
-                                                <el-text v-if="mfgData.model" size="small">Model: {{ mfgData.model }}</el-text>
-                                                <el-space wrap style="margin-top: 4px;">
-                                                    <el-tag v-if="mfgData.left_battery !== null" size="small"
-                                                           :type="mfgData.left_battery < 20 ? 'danger' : 'info'">
-                                                        L: {{ mfgData.left_battery }}%
-                                                    </el-tag>
-                                                    <el-tag v-if="mfgData.right_battery !== null" size="small"
-                                                           :type="mfgData.right_battery < 20 ? 'danger' : 'info'">
-                                                        R: {{ mfgData.right_battery }}%
-                                                    </el-tag>
-                                                    <el-tag v-if="mfgData.case_battery !== null" size="small"
-                                                           :type="mfgData.case_battery < 20 ? 'danger' : 'info'">
-                                                        Case: {{ mfgData.case_battery }}%
-                                                    </el-tag>
-                                                </el-space>
-                                                <div v-if="mfgData.charging">
-                                                    <el-text type="success" size="small">🔌 Charging</el-text>
-                                                </div>
+                                            <div v-if="mfgData?.type === 'airpods'">
+                                                <el-descriptions :column="2" size="small" border>
+                                                    <el-descriptions-item v-if="mfgData.model" label="Model">{{ mfgData.model }}</el-descriptions-item>
+                                                    <el-descriptions-item v-if="mfgData.left_battery !== null" label="Left Battery">
+                                                        <el-tag size="small" :type="mfgData.left_battery < 20 ? 'danger' : 'info'">
+                                                            {{ mfgData.left_battery }}%
+                                                        </el-tag>
+                                                    </el-descriptions-item>
+                                                    <el-descriptions-item v-if="mfgData.right_battery !== null" label="Right Battery">
+                                                        <el-tag size="small" :type="mfgData.right_battery < 20 ? 'danger' : 'info'">
+                                                            {{ mfgData.right_battery }}%
+                                                        </el-tag>
+                                                    </el-descriptions-item>
+                                                    <el-descriptions-item v-if="mfgData.case_battery !== null" label="Case Battery">
+                                                        <el-tag size="small" :type="mfgData.case_battery < 20 ? 'danger' : 'info'">
+                                                            {{ mfgData.case_battery }}%
+                                                        </el-tag>
+                                                    </el-descriptions-item>
+                                                    <el-descriptions-item v-if="mfgData.charging" label="Charging">
+                                                        <el-text type="success">🔌 Yes</el-text>
+                                                    </el-descriptions-item>
+                                                </el-descriptions>
                                             </div>
                                             
-                                            <!-- Raw data -->
-                                            <el-collapse v-if="!mfgData.type || mfgData.raw_hex" style="margin-top: 8px;">
-                                                <el-collapse-item :title="`Raw data (${mfgData.raw_length || 0} bytes)`">
-                                                    <div style="font-family: monospace; word-break: break-all; background-color: #F5F7FA; padding: 8px; border-radius: 4px;">
-                                                        {{ mfgData.raw_hex || 'No data' }}
-                                                    </div>
-                                                </el-collapse-item>
-                                            </el-collapse>
+                                            <!-- Raw Data -->
+                                            <div v-if="mfgData.raw_hex" style="margin-top: 12px;">
+                                                <el-text strong size="small">Raw Data ({{ mfgData.raw_length || 0 }} bytes):</el-text>
+                                                <div class="raw-data">{{ mfgData.raw_hex }}</div>
+                                            </div>
                                         </div>
                                     </div>
                                     
-                                    <!-- Fallback -->
-                                    <div v-else>
-                                        <el-text type="info" size="small" style="font-style: italic;">
-                                            No manufacturer data available
-                                        </el-text>
+                                    <!-- Connection Actions -->
+                                    <div style="margin-top: 16px;">
+                                        <el-space>
+                                            <el-button 
+                                                size="small"
+                                                :type="row.connected ? 'success' : 'primary'"
+                                                :loading="row.connecting"
+                                                :disabled="row.connected"
+                                                @click="connectDevice(row.address)"
+                                            >
+                                                {{ row.connected ? 'Connected' : row.connecting ? 'Connecting...' : 'Connect' }}
+                                            </el-button>
+                                            <el-button 
+                                                size="small"
+                                                :disabled="!row.connected"
+                                                @click="getServices(row.address)"
+                                            >
+                                                Discover Services
+                                            </el-button>
+                                        </el-space>
                                     </div>
-                                </div>
-                                
-                                <!-- Actions -->
-                                <el-space>
-                                    <el-button 
-                                        size="small"
-                                        :type="device.connected ? 'success' : 'primary'"
-                                        :loading="device.connecting"
-                                        :disabled="device.connected"
-                                        @click="connectDevice(device.address)"
-                                    >
-                                        {{ device.connected ? 'Connected' : device.connecting ? 'Connecting...' : 'Connect' }}
-                                    </el-button>
-                                    <el-button size="small" @click="device.showDetails = !device.showDetails">
-                                        Details
-                                    </el-button>
-                                </el-space>
-                                
-                                <!-- Expandable Details -->
-                                <el-collapse-transition>
-                                    <div v-show="device.showDetails" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #E4E7ED;">
-                                        <el-button 
-                                            size="small"
-                                            :disabled="!device.connected"
-                                            @click="getServices(device.address)"
-                                            style="width: 100%; margin-bottom: 8px;"
-                                        >
-                                            Discover Services
-                                        </el-button>
-                                        
-                                        <!-- Services List -->
-                                        <div v-if="device.services && device.services.length > 0" class="manufacturer-details">
-                                            <el-text strong size="small">Services:</el-text>
-                                            <div v-for="service in device.services" :key="service.uuid" 
-                                                 style="background-color: #F5F7FA; padding: 8px; margin-top: 4px; border-radius: 4px;">
-                                                <el-text size="small" style="font-family: monospace;">{{ service.uuid }}</el-text>
-                                                <br>
+                                    
+                                    <!-- Services -->
+                                    <div v-if="row.services && row.services.length > 0" style="margin-top: 16px;">
+                                        <h4>Services</h4>
+                                        <div class="manufacturer-details">
+                                            <div v-for="service in row.services" :key="service.uuid" class="beacon-details">
+                                                <el-text size="small" style="font-family: monospace; display: block;">{{ service.uuid }}</el-text>
                                                 <el-text type="info" size="small">{{ service.characteristics.length }} characteristics</el-text>
                                             </div>
                                         </div>
                                     </div>
-                                </el-collapse-transition>
-                            </el-card>
-                        </el-col>
-                    </el-row>
+                                </div>
+                            </template>
+                        </el-table-column>
+                        
+                        <!-- Device Name -->
+                        <el-table-column prop="name" label="Device Name" min-width="150" sortable>
+                            <template #default="{ row }">
+                                <div>
+                                    <el-text strong>{{ row.name || 'Unknown Device' }}</el-text>
+                                    <br>
+                                    <el-text type="info" size="small" class="address-cell">{{ row.address }}</el-text>
+                                </div>
+                            </template>
+                        </el-table-column>
+                        
+                        <!-- RSSI -->
+                        <el-table-column prop="rssi" label="Signal" width="120" sortable>
+                            <template #default="{ row }">
+                                <div style="text-align: center;">
+                                    <div class="rssi-cell" :style="{ color: getRssiColor(row.rssi) }">
+                                        {{ row.rssi }} dBm
+                                    </div>
+                                    <el-tag size="small" :type="getRssiType(row.rssi)">
+                                        {{ getRssiStrength(row.rssi) }}
+                                    </el-tag>
+                                </div>
+                            </template>
+                        </el-table-column>
+                        
+                        <!-- Manufacturer -->
+                        <el-table-column label="Manufacturer" min-width="150">
+                            <template #default="{ row }">
+                                <div v-if="row.decoded_manufacturer && Object.keys(row.decoded_manufacturer).length > 0">
+                                    <div v-for="(mfgData, companyId) in row.decoded_manufacturer" :key="companyId">
+                                        <el-text size="small">{{ mfgData.company_name }}</el-text>
+                                    </div>
+                                </div>
+                                <el-text v-else type="info" size="small">Unknown</el-text>
+                            </template>
+                        </el-table-column>
+                        
+                        <!-- Device Type -->
+                        <el-table-column label="Type" width="120">
+                            <template #default="{ row }">
+                                <div class="device-type-tags">
+                                    <template v-for="(mfgData, companyId) in row.decoded_manufacturer" :key="companyId">
+                                        <el-tag
+                                            v-if="mfgData?.type"
+                                            size="small"
+                                            :type="getDeviceTypeTagType(mfgData.type)"
+                                        >
+                                            {{ mfgData.type.toUpperCase() }}
+                                        </el-tag>
+                                    </template>
+                                    <el-text
+                                        v-if="!Object.values(row.decoded_manufacturer || {}).some(m => m.type)"
+                                        type="info"
+                                        size="small"
+                                        >
+                                        Generic
+                                    </el-text>
+                                </div>
+                            </template>
+                        </el-table-column>
+                        
+                        <!-- Last Seen -->
+                        <el-table-column prop="timestamp" label="Last Seen" width="100" sortable>
+                            <template #default="{ row }">
+                                <el-text size="small">{{ formatTime(row.timestamp) }}</el-text>
+                            </template>
+                        </el-table-column>
+                        
+                        <!-- Connection Status -->
+                        <el-table-column label="Status" width="100">
+                            <template #default="{ row }">
+                                <el-tag v-if="row.connected" type="success" size="small">Connected</el-tag>
+                                <el-tag v-else-if="row.connecting" type="warning" size="small">Connecting</el-tag>
+                                <el-tag v-else type="info" size="small">Available</el-tag>
+                            </template>
+                        </el-table-column>
+                    </el-table>
                     
                     <!-- Empty State -->
                     <el-empty v-if="Object.keys(devices).length === 0" description="No devices discovered yet">
@@ -287,10 +361,13 @@
     <script>
         const { createApp } = Vue;
         
-        createApp({
+        
+        const app = createApp({
             data() {
                 return {
                     devices: {},
+                    showConnectedOnly: false,
+                    sortOrder: "rssi",
                     scanning: false,
                     loading: false,
                     wsConnected: false,
@@ -306,38 +383,19 @@
             
             computed: {
                 filteredAndSortedDevices() {
-                    let filtered = Object.values(this.devices).filter(device => {
-                        if (this.filter.name && !device.name?.toLowerCase().includes(this.filter.name.toLowerCase())) {
-                            return false;
-                        }
-                        if (device.rssi < this.filter.minRssi) {
-                            return false;
-                        }
-                        
-                        return true;
-                    });
-                    
-                    return filtered.sort((a, b) => {
-                        switch (this.sortBy) {
-                            case 'rssi':
-                                return b.rssi - a.rssi;
-                            case 'name':
-                                return (a.name || 'ZZZ').localeCompare(b.name || 'ZZZ');
-                            case 'discovered':
-                                return new Date(b.timestamp) - new Date(a.timestamp);
-                            case 'distance':
-                                const getDistance = (device) => {
-                                    for (const mfg of Object.values(device.decoded_manufacturer || {})) {
-                                        if (mfg.estimated_distance) {
-                                            return mfg.estimated_distance;
-                                        }
-                                    }
-                                    return 999999;
-                                };
-                                return getDistance(a) - getDistance(b);
-                            default:
-                                return 0;
-                        }
+                return Object.values(this.devices)
+                    .filter(device => device.address)   // ✅ guard
+                    .filter(device => {
+                        return (
+                            (!this.filter.name || (device.name || '').toLowerCase().includes(this.filter.name.toLowerCase())) &&
+                            (device.rssi >= this.filter.minRssi) &&
+                            (this.showConnectedOnly ? device.connected : true)
+                        );
+                    })
+                    .sort((a, b) => {
+                        return this.sortOrder === 'rssi'
+                            ? b.rssi - a.rssi
+                            : a.address.localeCompare(b.address);
                     });
                 }
             },
@@ -348,6 +406,17 @@
             },
             
             methods: {
+                handleSort({ column, prop, order }) {
+                    // Handle custom sorting for distance column
+                    if (prop === 'rssi') {
+                        this.sortBy = 'rssi';
+                    } else if (prop === 'name') {
+                        this.sortBy = 'name';
+                    } else if (prop === 'timestamp') {
+                        this.sortBy = 'discovered';
+                    }
+                },
+                
                 connectWebSocket() {
                     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                     const wsUrl = `${protocol}//${window.location.host}/ws`;
@@ -389,7 +458,7 @@
                                     timestamp: new Date(timestamp).toISOString(),
                                     ...changes,
                                 }
-                            )
+                            );
                             break;
                         case 'scan_started':
                             this.scanning = true;
@@ -471,6 +540,7 @@
                 
                 addOrUpdateDevice(deviceData) {
                     const device = {
+                        address: deviceData.address,
                         ...deviceData,
                         timestamp: new Date(deviceData.timestamp).toISOString(),
                         decoded_manufacturer: {
@@ -570,7 +640,16 @@
                     }
                 }
             }
-        }).use(ElementPlus).mount('#app');
+        });
+        
+        app.use(ElementPlus);
+        app.mount('#app');
+
+        app.config.errorHandler = (err) => {
+            /* handle error */
+            console.error(err);
+        };
+
     </script>
 </body>
 </html>
