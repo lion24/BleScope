@@ -11,10 +11,6 @@ def get_logging_config(log_level: str = "INFO") -> Dict[str, Any]:
             "default": {
                 "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
                 "datefmt": "%Y-%m-%d %H:%M:%S",
-            },
-            "detailed": {
-                "format": "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(funcName)s() - %(message)s",
-                "datefmt": "%Y-%m-%d %H:%M:%S"
             }
         },
         "handlers": {
@@ -30,23 +26,30 @@ def get_logging_config(log_level: str = "INFO") -> Dict[str, Any]:
                 "level": "DEBUG",
                 "filename": "logs/app.log",
                 "mode": "a",
-                "maxBytes": 10 * 1024 * 1024,  # 10 MB
+                "maxBytes": 10 * 1024 * 1024,
                 "backupCount": 5,
             }
         },
+        "root": {  # root logger (keep minimal or silence it)
+            "handlers": [],
+            "level": "WARNING",  # prevents noisy libs
+        },
         "loggers": {
-            "": { # root logger
+            "blescope": {  # your application namespace
                 "handlers": ["console", "file"],
-                "level": "DEBUG"
+                "level": "DEBUG",
+                "propagate": False,  # don't bubble up to root
             },
             "uvicorn": {
                 "handlers": ["console"],
-                "level": "INFO"
+                "level": "INFO",
+                "propagate": False,
             },
             "fastapi": {
                 "handlers": ["console"],
-                "level": "INFO"
-            }
+                "level": "INFO",
+                "propagate": False,
+            },
         }
     }
 

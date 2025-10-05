@@ -1,22 +1,21 @@
 import logging
 from fastapi import WebSocket
 from typing import List, Dict
-from serde.json import to_json
 
-from blescope.shared.events.event_bus import EventBus
+from blescope.shared.events.event_bus import EventBus, EventType
 
 class WebSocketManager:
     def __init__(self, event_bus: EventBus):
         self.active_connections: List[WebSocket] = []
-        self.event_bus = event_bus
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self._setup_event_handlers()
+        self._setup_event_handlers(event_bus)
 
-    def _setup_event_handlers(self):
+    def _setup_event_handlers(self, bus: EventBus):
         # Subscribe to all domain events
-        self.event_bus.subscribe("ScanStarted", self._handle_scan_started)
-        self.event_bus.subscribe("ScanStopped", self._handle_scan_stopped)
-        self.event_bus.subscribe("DeviceDiscovered", self._handle_device_discovered)
+        bus.subscribe(EventType.SCAN_STARTED, self._handle_scan_started)
+        bus.subscribe(EventType.SCAN_STOPPED, self._handle_scan_stopped)
+        bus.subscribe(EventType.DEVICE_CREATED, self._handle_device_created)
+        bus.subscribe(EventType.DEVICE_UPDATED, self._handle_device_update)
         
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -28,19 +27,13 @@ class WebSocketManager:
 
     async def broadcast(self, message: dict):
         """Send message to all connected clients."""
-        disconnects = []
 
         for connection in self.active_connections:
             try:
                 self.logger.debug(f"Sending message to client: {message}")
-                await connection.send_text(to_json(message))
+                await connection.send_json(message)
             except Exception as e:
                 self.logger.error(f"Error sending message to client: {e}", exc_info=True)
-                disconnects.append(connection)
-
-        # Clean up disconnected clients
-        for connection in disconnects:
-            self.active_connections.remove(connection)
 
     async def _handle_scan_started(self, event):
         self.logger.info(f"Scan started: {event}")
@@ -62,14 +55,32 @@ class WebSocketManager:
             }
         })
 
-    async def _handle_device_discovered(self, event):
-        self.logger.info(f"Device discovered: {event}")
+    async def _handle_device_created(self, event):
+        """Handle both device created and updated events"""
+        try:
+            message = {
+                "type": "device_created",
+                "data": {
+                    "address": event.data["device_address"],
+                    "name": event.data["name"],
+                    "rssi": event.data["rssi"],
+                    "timestamp": event.data["occurred_at"],
+                    "manufacturer_data": event.data.get("manufacturer_data", {}),
+                    "decoded_manufacturer": event.data.get("decoded_manufacturer", {})
+                }
+            }
+
+            await self.broadcast(message)
+            self.logger.debug(f"Broadcast device_discovered for {message['data']['address']}")
+        except Exception as e:
+            self.logger.error(f"Error broadcasting device_created: {e}", exc_info=True)
+        
+    async def _handle_device_update(self, event):
         await self.broadcast({
-            "type": "device_discovered",
+            "type": "device_updated",
             "data": {
                 "address": event.data["device_address"],
-                "name": event.data["device_name"],
-                "rssi": event.data["rssi"],
+                "changes": event.data["changes"],
                 "timestamp": event.data["occurred_at"]
             }
         })

@@ -1,0 +1,19 @@
+[project]
+name = "blescope-dissector"
+version = "0.1.0"
+description = "A dissector to decode BLE advertisement data"
+authors = [
+    { name = "Lionel H", email = "me@nullbyte.be" }
+]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.13"
+
+[tool.poetry]
+packages = [
+    { include = "blescope_dissector" }
+]
+
+[build-system]
+requires = ["poetry-core>=2.0.0"]
+build-backend = "poetry.core.masonry.api"

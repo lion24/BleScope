@@ -1,8 +1,18 @@
+import asyncio
 import logging
 from typing import List, Callable, Dict, Any
 from dataclasses import dataclass
-import asyncio
+from enum import Enum
 
+from blescope.shared.events.exceptions import HandlerExecutionError
+
+class EventType(Enum):
+    SCAN_STARTED = "ScanStarted"
+    SCAN_STOPPED = "ScanStopped"
+    DEVICE_CONNECTED = "DeviceConnected"
+    DEVICE_DISCONNECTED = "DeviceDisconnected"
+    DEVICE_CREATED = "DeviceCreated"
+    DEVICE_UPDATED = "DeviceUpdated"
 @dataclass
 class Event:
     name: str
@@ -10,10 +20,10 @@ class Event:
 
 class EventBus:
     def __init__(self):
-        self._handlers: Dict[str, List[Callable]] = {}
+        self._handlers: Dict[EventType, List[Callable]] = {}
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
-    def subscribe(self, event_name: str, handler: Callable):
+    def subscribe(self, event_name: EventType, handler: Callable):
         if event_name not in self._handlers:
             self._handlers[event_name] = []
         self._handlers[event_name].append(handler)
@@ -23,14 +33,13 @@ class EventBus:
         )
 
     async def publish(self, event: Event):
-        event_name = event.__class__.__name__
+        event_name = EventType(event.__class__.__name__)
         event_data = {
             k: v for k, v in event.__dict__.items()
             if not k.startswith('_')
         }
 
-        self.logger.info(f"Published event: {event_name}")
-        self.logger.debug(f"Event data: {event_data}")
+        self.logger.debug(f"Published event: {event_name}")
 
         if event_name in self._handlers:
             handlers = self._handlers.get(event_name)
@@ -51,6 +60,8 @@ class EventBus:
                         exec_info=True
                     )
 
+                    raise e # Reraise to avoid silent failures
+
             if tasks:
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 for i, result in enumerate(results):
@@ -58,5 +69,10 @@ class EventBus:
                         self.logger.error(
                             f"Handler {handlers[i].__name__} failed: {result}"
                         )
+
+                        raise HandlerExecutionError(
+                            f"Handler {handlers[i].__name__} failed"
+                        ) from result
+                        
         else:
             self.logger.warning(f"No handlers for event '{event_name}'")
